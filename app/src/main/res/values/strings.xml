@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">XTLS_CORE_PROXY</string>
+    <string name="vpn_channel_name">VPN Tunnel</string>
+    <string name="vpn_channel_description">Status notifications for Xray VPN tunnel</string>
+    <string name="vpn_notification_title">XTLS Core Proxy</string>
 </resources>
