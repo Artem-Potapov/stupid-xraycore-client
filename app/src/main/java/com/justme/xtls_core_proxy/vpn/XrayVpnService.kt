@@ -1,5 +1,6 @@
 package com.justme.xtls_core_proxy.vpn
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -17,6 +18,7 @@ import com.justme.xtls_core_proxy.bridge.XrayBridge
 import com.justme.xtls_core_proxy.log.LogRepository
 import com.justme.xtls_core_proxy.log.VpnConnectionState
 
+@SuppressLint("VpnServicePolicy")
 class XrayVpnService : VpnService() {
 
     companion object {
