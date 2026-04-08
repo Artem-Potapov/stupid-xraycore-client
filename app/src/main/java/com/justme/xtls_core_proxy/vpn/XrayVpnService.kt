@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import com.justme.xtls_core_proxy.MainActivity
 import com.justme.xtls_core_proxy.R
 import com.justme.xtls_core_proxy.bridge.XrayBridge
+import com.justme.xtls_core_proxy.geo.GeoAssetPreparer
 import com.justme.xtls_core_proxy.log.LogRepository
 import com.justme.xtls_core_proxy.log.VpnConnectionState
 
@@ -83,6 +84,11 @@ class XrayVpnService : VpnService() {
 
         Thread {
             try {
+                val geoAssetDir = GeoAssetPreparer.prepare(this)
+                    .getOrElse { error ->
+                        throw IllegalStateException("Geofile preparation failed: ${error.message}", error)
+                    }
+
                 val builder = Builder()
                     .setSession(getString(R.string.app_name))
                     .setMtu(1500)
@@ -106,8 +112,9 @@ class XrayVpnService : VpnService() {
                 tunInterface = pfd
                 val fd = pfd.fd
                 LogRepository.append("TUN established with fd=$fd")
+                LogRepository.append("Using geofiles from ${geoAssetDir.absolutePath}")
 
-                XrayBridge.startXray(configJson, fd)
+                XrayBridge.startXray(configJson, fd, geoAssetDir.absolutePath)
                     .onSuccess {
                         LogRepository.setConnectionState(VpnConnectionState.CONNECTED)
                         LogRepository.append("Xray core started")
