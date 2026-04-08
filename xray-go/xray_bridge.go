@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/xtls/xray-core/common/platform"
 	"github.com/xtls/xray-core/core"
 	_ "github.com/xtls/xray-core/main/distro/all"
 )
@@ -17,7 +18,7 @@ var (
 
 // StartXray starts a single Xray instance using json config and Android TUN fd.
 // It returns an empty string on success; otherwise it returns an error message.
-func StartXray(jsonConfig string, tunFd int) string {
+func StartXray(jsonConfig string, tunFd int, assetDir string) string {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -37,6 +38,11 @@ func StartXray(jsonConfig string, tunFd int) string {
 	fdValue := fmt.Sprintf("%d", tunFd)
 	_ = os.Setenv("xray.tun.fd", fdValue)
 	_ = os.Setenv("XRAY_TUN_FD", fdValue)
+	trimmedAssetDir := strings.TrimSpace(assetDir)
+	if trimmedAssetDir != "" {
+		_ = os.Setenv(platform.AssetLocation, trimmedAssetDir)
+		_ = os.Setenv(platform.NormalizeEnvName(platform.AssetLocation), trimmedAssetDir)
+	}
 
 	config, err := core.LoadConfig("json", strings.NewReader(jsonConfig))
 	if err != nil {
