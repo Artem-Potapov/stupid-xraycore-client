@@ -65,6 +65,22 @@ class ConfigBuilderTest {
         ConfigBuilder.fromJson(input)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun fromJson_rejectsHttpInbound() {
+        val input = """
+            {
+              "inbounds": [
+                {"protocol": "http", "tag": "loopback"}
+              ],
+              "outbounds": [
+                {"protocol": "freedom", "tag": "direct"}
+              ]
+            }
+        """.trimIndent()
+
+        ConfigBuilder.fromJson(input)
+    }
+
     @Test
     fun buildRuntimeConfig_acceptsVlessAndJson() {
         val vless = ConfigBuilder.buildRuntimeConfig(

@@ -40,9 +40,35 @@ From project root:
 ./scripts/build-xray-aar.ps1
 ```
 
+Linux/macOS:
+
+```bash
+./scripts/build-xray-aar.bash
+```
+
+Optional override (default is `main`):
+
+```powershell
+$env:XRAY_CORE_REF = "main"
+./scripts/build-xray-aar.ps1
+```
+
 This generates:
 
 - `app/libs/xray.aar`
+
+## Canonical build pipeline
+
+1. Build AAR: `scripts/build-xray-aar.ps1` (Windows) or `scripts/build-xray-aar.bash` (Linux/macOS).
+2. Build app: `./gradlew.bat :app:assembleDebug` (or `./gradlew :app:assembleDebug` on Unix).
+3. Quality checks: run tests and lint.
+
+```powershell
+./gradlew.bat :app:testDebugUnitTest
+./gradlew.bat :app:lintDebug
+```
+
+`app/build.gradle.kts` now wires AAR generation into `preBuild`, so app builds fail fast if `app/libs/xray.aar` cannot be produced.
 
 ## Build and run app
 
@@ -74,3 +100,6 @@ Run on a real Android device (VPN/TUN behavior is not reliable in emulator-only 
 - `Xray bridge class not found`: build `app/libs/xray.aar` first.
 - `unknown inbound protocol: tun`: ensure Go bridge imports `github.com/xtls/xray-core/main/distro/all`.
 - Start loop/failure: verify server config and ensure input is valid VLESS/JSON.
+- `gomobile`/`gobind` mismatch: rerun the AAR script; it installs both tools at the exact `golang.org/x/mobile` version in `go.mod`.
+- `gomobile init` or Android toolchain errors: ensure Android SDK/NDK are installed and `ANDROID_SDK_ROOT`/`ANDROID_NDK_HOME` are set.
+- Build pulls wrong `xray-core` revision: check `XRAY_CORE_REF` (defaults to `main` when unset).

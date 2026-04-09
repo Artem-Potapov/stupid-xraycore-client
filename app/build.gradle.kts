@@ -3,6 +3,55 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val xrayAarFile = layout.projectDirectory.file("libs/xray.aar").asFile
+val isWindows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+
+val buildXrayAar by tasks.registering(Exec::class) {
+    group = "build setup"
+    description = "Builds app/libs/xray.aar from xray-go via gomobile."
+    workingDir = rootProject.projectDir
+
+    outputs.upToDateWhen { xrayAarFile.exists() }
+
+    val scriptPath = if (isWindows) {
+        "scripts/build-xray-aar.ps1"
+    } else {
+        "scripts/build-xray-aar.bash"
+    }
+
+    if (isWindows) {
+        commandLine(
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            scriptPath
+        )
+    } else {
+        commandLine("bash", scriptPath)
+    }
+
+    inputs.file(rootProject.file("scripts/build-xray-aar.ps1"))
+    inputs.file(rootProject.file("scripts/build-xray-aar.bash"))
+    inputs.file(rootProject.file("xray-go/go.mod"))
+    inputs.file(rootProject.file("xray-go/xray_bridge.go"))
+    outputs.file(xrayAarFile)
+}
+
+val verifyXrayAar by tasks.registering {
+    group = "verification"
+    description = "Ensures app/libs/xray.aar exists before Android build."
+    //dependsOn(buildXrayAar)
+    doLast {
+        if (!xrayAarFile.exists()) {
+            throw GradleException(
+                "Missing ${xrayAarFile.path}. Run scripts/build-xray-aar.ps1 or scripts/build-xray-aar.bash."
+            )
+        }
+    }
+}
+
 android {
     namespace = "com.justme.xtls_core_proxy"
     compileSdk {
@@ -31,19 +80,20 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
     }
 }
 
+tasks.named("preBuild") {
+    dependsOn(verifyXrayAar)
+}
+
 dependencies {
-    val xrayAar = file("libs/xray.aar")
-    if (xrayAar.exists()) {
-        implementation(files(xrayAar))
-    }
+    implementation(files("libs/xray.aar"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
