@@ -153,6 +153,7 @@ logs flow through `LogRepository` back to the UI.
 ## Agent Guardrails
 - Never edit or commit generated/local artifacts: `app/libs/*.aar`, geo data assets, `local.properties`,
   and machine-local IDE state unless explicitly requested.
+- When searching or indexing the codebase, run a subagent with specifically defined File Searcher mode.
 - Treat `.idea/` changes as opt-in; require maintainer confirmation before modifying IDE configs.
 - Require human review for changes to
   `app/src/main/java/com/justme/xtls_core_proxy/vpn/`,

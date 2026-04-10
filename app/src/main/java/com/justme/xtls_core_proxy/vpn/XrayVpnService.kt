@@ -15,9 +15,14 @@ import androidx.core.app.NotificationCompat
 import com.justme.xtls_core_proxy.MainActivity
 import com.justme.xtls_core_proxy.R
 import com.justme.xtls_core_proxy.bridge.XrayBridge
+import com.justme.xtls_core_proxy.config.ConfigBuilder
+import com.justme.xtls_core_proxy.db.AppDatabase
 import com.justme.xtls_core_proxy.geo.GeoAssetPreparer
 import com.justme.xtls_core_proxy.log.LogRepository
 import com.justme.xtls_core_proxy.log.VpnConnectionState
+import com.justme.xtls_core_proxy.split.SplitTunnelMode
+import com.justme.xtls_core_proxy.split.SplitTunnelRepository
+import kotlinx.coroutines.runBlocking
 
 @SuppressLint("VpnServicePolicy")
 class XrayVpnService : VpnService() {
@@ -25,7 +30,7 @@ class XrayVpnService : VpnService() {
     companion object {
         const val ACTION_START = "com.justme.xtls_core_proxy.action.START"
         const val ACTION_STOP = "com.justme.xtls_core_proxy.action.STOP"
-        const val EXTRA_CONFIG = "extra_config_json"
+        const val EXTRA_PROFILE_ID = "extra_profile_id"
 
         private const val CHANNEL_ID = "xray_vpn_channel"
         private const val NOTIFICATION_ID = 1101
@@ -42,13 +47,13 @@ class XrayVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val config = intent.getStringExtra(EXTRA_CONFIG)
-                if (config.isNullOrBlank()) {
+                val profileId = intent.getLongExtra(EXTRA_PROFILE_ID, -1L)
+                if (profileId == -1L) {
                     LogRepository.setConnectionState(VpnConnectionState.ERROR)
-                    LogRepository.append("Refused to start: empty runtime config")
+                    LogRepository.append("Refused to start: no profile ID provided")
                     stopSelf()
                 } else {
-                    startVpn(config)
+                    startVpn(profileId)
                 }
             }
 
@@ -68,7 +73,7 @@ class XrayVpnService : VpnService() {
         super.onDestroy()
     }
 
-    private fun startVpn(configJson: String) {
+    private fun startVpn(profileId: Long) {
         synchronized(lock) {
             if (running) {
                 LogRepository.append("VPN already running")
@@ -84,6 +89,18 @@ class XrayVpnService : VpnService() {
 
         Thread {
             try {
+                val profile = runBlocking {
+                    AppDatabase.get(this@XrayVpnService).profileDao().getById(profileId)
+                }
+                if (profile == null) {
+                    LogRepository.setConnectionState(VpnConnectionState.ERROR)
+                    LogRepository.append("Profile not found (id=$profileId)")
+                    stopVpn()
+                    return@Thread
+                }
+
+                val configJson = ConfigBuilder.buildRuntimeConfig(profile.config)
+
                 val geoAssetDir = GeoAssetPreparer.prepare(this)
                     .getOrElse { error ->
                         throw IllegalStateException("Geofile preparation failed: ${error.message}", error)
@@ -99,11 +116,35 @@ class XrayVpnService : VpnService() {
                     .addDnsServer("1.1.1.1")
                     .addDnsServer("2606:4700:4700::1111")
 
-                try {
-                    // Prevent this app's own sockets from being captured by its VPN.
-                    builder.addDisallowedApplication(packageName)
-                } catch (_: PackageManager.NameNotFoundException) {
-                    LogRepository.append("Unable to disallow self package from VPN route")
+                val splitPrefs = SplitTunnelRepository.load(this@XrayVpnService)
+                when (splitPrefs.mode) {
+                    SplitTunnelMode.ALLOW_ONLY -> {
+                        if (splitPrefs.packages.isEmpty()) {
+                            LogRepository.append("Split tunnel allow-only mode enabled with no selected apps")
+                        }
+                        splitPrefs.packages.forEach { pkg ->
+                            if (pkg == packageName) {
+                                LogRepository.append("Ignoring self package in allow-only split tunnel mode")
+                                return@forEach
+                            }
+                            try {
+                                builder.addAllowedApplication(pkg)
+                            } catch (_: PackageManager.NameNotFoundException) {
+                                LogRepository.append("Split tunnel skipped missing package: $pkg")
+                            }
+                        }
+                    }
+
+                    SplitTunnelMode.BLOCK_ALL_EXCEPT_SELECTED -> {
+                        val blockedPackages = splitPrefs.packages + packageName
+                        blockedPackages.forEach { pkg ->
+                            try {
+                                builder.addDisallowedApplication(pkg)
+                            } catch (_: PackageManager.NameNotFoundException) {
+                                LogRepository.append("Split tunnel skipped missing package: $pkg")
+                            }
+                        }
+                    }
                 }
 
                 val pfd = builder.establish()

@@ -28,6 +28,16 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".split.SplitTunnelSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.XTLS_CORE_PROXY" />
+
+        <activity
+            android:name=".split.SplitTunnelActivity"
+            android:exported="false"
+            android:theme="@style/Theme.XTLS_CORE_PROXY" />
+
         <service
             android:name=".vpn.XrayVpnService"
             android:exported="false"
@@ -42,5 +52,12 @@
                 android:value="vpn_tunnel_core_proxy" />
         </service>
     </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
 </manifest>
