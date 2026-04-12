@@ -223,40 +223,39 @@ EOF
     local skip_count=0
     local total_lines_written=0
 
-    # Use find with pruning — we handle .gitignore via git check-ignore per-file
-    # Collect all candidate files first, then filter
+    # Build the -prune expression for find dynamically from ALWAYS_SKIP_DIRS.
+    # This prevents find from ever descending into those directories, so we
+    # never pay the per-file overhead for the thousands of files inside build/,
+    # .gradle/, .idea/, etc.
+    #
+    # Produces:  \( -name ".git" -o -name ".gradle" -o ... \) -prune -o -type f -print0
+    local prune_expr=()
+    prune_expr+=("(")
+    for skip_dir in "${ALWAYS_SKIP_DIRS[@]}"; do
+        if [[ ${#prune_expr[@]} -gt 1 ]]; then
+            prune_expr+=("-o")
+        fi
+        prune_expr+=("-name" "$skip_dir")
+    done
+    prune_expr+=(")" "-prune" "-o" "-type" "f" "-print0")
+
     while IFS= read -r -d '' abs_path; do
         local rel_path="${abs_path#$PROJECT_ROOT/}"
         local file_name
         file_name=$(basename "$abs_path")
-        local dir_name
-        dir_name=$(dirname "$rel_path")
 
-        # ── Skip checks ──
-
-        # 1. Always-skip dirs (check each component of the path)
-        local skip=false
-        IFS='/' read -ra path_parts <<< "$rel_path"
-        for part in "${path_parts[@]}"; do
-            if is_always_skip_dir "$part"; then
-                skip=true
-                break
-            fi
-        done
-        [[ "$skip" == true ]] && { ((skip_count++)) || true; continue; }
-
-        # 2. Always-skip files
+        # 1. Always-skip files by name
         if is_always_skip_file "$file_name"; then
             ((skip_count++)) || true
             continue
         fi
 
-        # 3. Extension filter
+        # 2. Extension filter
         if ! is_included_extension "$file_name"; then
             continue
         fi
 
-        # 4. .gitignore check (most expensive — do it last)
+        # 3. .gitignore check (most expensive — do it last)
         if is_git_ignored "$abs_path"; then
             ((skip_count++)) || true
             log "  gitignore → $rel_path"
@@ -268,7 +267,7 @@ EOF
         emit_file "$abs_path" "$rel_path" "$OUTPUT_FILE"
         ((file_count++)) || true
 
-    done < <(find "$PROJECT_ROOT" -type f -print0 | sort -z)
+    done < <(find "$PROJECT_ROOT" "${prune_expr[@]}" | sort -z)
 
     # ── Bundle footer ─────────────────────────────────────────────────────────
     total_lines_written=$(wc -l < "$OUTPUT_FILE")
