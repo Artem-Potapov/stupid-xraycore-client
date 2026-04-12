@@ -66,7 +66,15 @@ object ConfigBuilder {
             shortId = params["sid"],
             fingerprint = params["fp"]?.ifBlank { null } ?: "chrome",
             serverName = params["sni"]?.ifBlank { null } ?: host,
-            network = network
+            network = network,
+            alpn = params["alpn"].orEmpty(),
+            spiderX = params["spx"],
+            allowInsecure = params["allowInsecure"]?.equals("1") == true,
+            transportPath = params["path"],
+            transportHost = params["host"],
+            grpcServiceName = params["serviceName"],
+            kcpSeed = params["seed"],
+            quicKey = params["key"]
         )
     }
 
@@ -148,20 +156,104 @@ object ConfigBuilder {
             }))
         })
 
-        val streamSettings = JSONObject()
-        streamSettings.put("network", profile.network)
-        streamSettings.put("security", profile.security)
-        if (profile.security.equals("reality", ignoreCase = true)) {
-            require(!profile.publicKey.isNullOrBlank()) { "Missing pbk for REALITY config" }
-            streamSettings.put("realitySettings", JSONObject().apply {
-                put("serverName", profile.serverName)
-                put("fingerprint", profile.fingerprint)
-                put("publicKey", profile.publicKey)
-                put("shortId", profile.shortId ?: "")
-            })
-        }
-        outbound.put("streamSettings", streamSettings)
+        outbound.put("streamSettings", buildStreamSettings(profile))
         return outbound
+    }
+
+    private fun buildStreamSettings(profile: VlessProfile): JSONObject {
+        val ss = JSONObject()
+        ss.put("network", profile.network)
+        ss.put("security", profile.security)
+
+        when (profile.security.lowercase()) {
+            "reality" -> {
+                require(!profile.publicKey.isNullOrBlank()) { "Missing pbk for REALITY config" }
+                ss.put("realitySettings", JSONObject().apply {
+                    put("serverName", profile.serverName)
+                    put("fingerprint", profile.fingerprint)
+                    put("publicKey", profile.publicKey)
+                    put("shortId", profile.shortId ?: "")
+                    if (profile.alpn.isNotBlank()) {
+                        put("alpn", alpnToJsonArray(profile.alpn))
+                    }
+                    if (!profile.spiderX.isNullOrBlank()) {
+                        put("spiderX", profile.spiderX)
+                    }
+                })
+            }
+            "tls" -> {
+                ss.put("tlsSettings", JSONObject().apply {
+                    put("serverName", profile.serverName)
+                    if (profile.fingerprint.isNotBlank()) {
+                        put("fingerprint", profile.fingerprint)
+                    }
+                    if (profile.allowInsecure) {
+                        put("allowInsecure", true)
+                    }
+                    if (profile.alpn.isNotBlank()) {
+                        put("alpn", alpnToJsonArray(profile.alpn))
+                    }
+                })
+            }
+        }
+
+        putTransportSettings(ss, profile)
+        return ss
+    }
+
+    private fun putTransportSettings(ss: JSONObject, profile: VlessProfile) {
+        when (profile.network.lowercase()) {
+            "ws" -> if (!profile.transportPath.isNullOrBlank() || !profile.transportHost.isNullOrBlank()) {
+                ss.put("wsSettings", JSONObject().apply {
+                    if (!profile.transportPath.isNullOrBlank()) put("path", profile.transportPath)
+                    if (!profile.transportHost.isNullOrBlank()) {
+                        put("headers", JSONObject().put("Host", profile.transportHost))
+                    }
+                })
+            }
+            "httpupgrade" -> if (!profile.transportPath.isNullOrBlank() || !profile.transportHost.isNullOrBlank()) {
+                ss.put("httpupgradeSettings", JSONObject().apply {
+                    if (!profile.transportPath.isNullOrBlank()) put("path", profile.transportPath)
+                    if (!profile.transportHost.isNullOrBlank()) put("host", profile.transportHost)
+                })
+            }
+            "h2" -> if (!profile.transportPath.isNullOrBlank() || !profile.transportHost.isNullOrBlank()) {
+                ss.put("httpSettings", JSONObject().apply {
+                    if (!profile.transportPath.isNullOrBlank()) put("path", profile.transportPath)
+                    if (!profile.transportHost.isNullOrBlank()) {
+                        put("host", JSONArray().put(profile.transportHost))
+                    }
+                })
+            }
+            "xhttp" -> if (!profile.transportPath.isNullOrBlank() || !profile.transportHost.isNullOrBlank()) {
+                ss.put("xhttpSettings", JSONObject().apply {
+                    if (!profile.transportPath.isNullOrBlank()) put("path", profile.transportPath)
+                    if (!profile.transportHost.isNullOrBlank()) put("host", profile.transportHost)
+                })
+            }
+            "grpc" -> if (!profile.grpcServiceName.isNullOrBlank() || !profile.grpcAuthority.isNullOrBlank()) {
+                ss.put("grpcSettings", JSONObject().apply {
+                    if (!profile.grpcServiceName.isNullOrBlank()) put("serviceName", profile.grpcServiceName)
+                    if (!profile.grpcAuthority.isNullOrBlank()) put("authority", profile.grpcAuthority)
+                })
+            }
+            "kcp" -> if (!profile.kcpSeed.isNullOrBlank()) {
+                ss.put("kcpSettings", JSONObject().apply {
+                    put("seed", profile.kcpSeed)
+                })
+            }
+            "quic" -> if (!profile.quicKey.isNullOrBlank()) {
+                ss.put("quicSettings", JSONObject().apply {
+                    put("key", profile.quicKey)
+                })
+            }
+        }
+    }
+
+    private fun alpnToJsonArray(alpn: String): JSONArray {
+        return JSONArray().apply {
+            alpn.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { put(it) }
+        }
     }
 
     private fun tunInboundJson(): JSONObject {
@@ -187,5 +279,14 @@ data class VlessProfile(
     val shortId: String?,
     val fingerprint: String,
     val serverName: String,
-    val network: String
+    val network: String,
+    val alpn: String = "",
+    val spiderX: String? = null,
+    val allowInsecure: Boolean = false,
+    val transportPath: String? = null,
+    val transportHost: String? = null,
+    val grpcServiceName: String? = null,
+    val grpcAuthority: String? = null,
+    val kcpSeed: String? = null,
+    val quicKey: String? = null
 )

@@ -92,4 +92,36 @@ class ConfigBuilderTest {
         assertTrue(vless.contains("\"protocol\":\"tun\""))
         assertTrue(json.contains("\"protocol\":\"tun\""))
     }
+
+    @Test
+    fun fromVlessUri_tlsWithWsProducesCorrectStreamSettings() {
+        val uri = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=ws&security=tls&sni=cdn.example.com&path=%2Fws&host=cdn.example.com&alpn=h2"
+
+        val config = JSONObject(ConfigBuilder.fromVlessUri(uri))
+        val ss = config.getJSONArray("outbounds").getJSONObject(0)
+            .getJSONObject("streamSettings")
+
+        assertEquals("ws", ss.getString("network"))
+        assertEquals("tls", ss.getString("security"))
+        assertTrue(ss.has("tlsSettings"))
+        assertEquals("cdn.example.com", ss.getJSONObject("tlsSettings").getString("serverName"))
+        assertEquals("h2", ss.getJSONObject("tlsSettings").getJSONArray("alpn").getString(0))
+        assertTrue(ss.has("wsSettings"))
+        assertEquals("/ws", ss.getJSONObject("wsSettings").getString("path"))
+    }
+
+    @Test
+    fun fromVlessUri_realityWithAlpnAndSpiderX() {
+        val uri = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=tcp&security=reality&pbk=key123&sid=ab&sni=sni.com&fp=firefox&alpn=h2&spx=%2Findex"
+
+        val config = JSONObject(ConfigBuilder.fromVlessUri(uri))
+        val ss = config.getJSONArray("outbounds").getJSONObject(0)
+            .getJSONObject("streamSettings")
+
+        val reality = ss.getJSONObject("realitySettings")
+        assertEquals("h2", reality.getJSONArray("alpn").getString(0))
+        assertEquals("/index", reality.getString("spiderX"))
+    }
 }

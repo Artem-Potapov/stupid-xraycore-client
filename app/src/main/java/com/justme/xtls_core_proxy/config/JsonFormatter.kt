@@ -30,7 +30,7 @@ object JsonFormatter {
                 is JSONArray -> nextValue.toString(2)
                 else -> jsonString // Return as-is for primitive values
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // If it's not valid JSON, return the original string
             jsonString
         }
@@ -51,7 +51,7 @@ object JsonFormatter {
             val jsonTokener = JSONTokener(trimmed)
             jsonTokener.nextValue()
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

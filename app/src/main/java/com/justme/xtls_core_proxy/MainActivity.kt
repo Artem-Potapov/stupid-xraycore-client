@@ -32,7 +32,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,7 +41,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,7 +53,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +64,7 @@ import androidx.core.content.ContextCompat
 import com.justme.xtls_core_proxy.db.Profile
 import com.justme.xtls_core_proxy.log.VpnConnectionState
 import com.justme.xtls_core_proxy.log.LogRepository
+import com.justme.xtls_core_proxy.settings.ServerSettingsActivity
 import com.justme.xtls_core_proxy.split.SplitTunnelSettingsActivity
 import com.justme.xtls_core_proxy.state.VpnViewModel
 import com.justme.xtls_core_proxy.ui.theme.XTLS_CORE_PROXYTheme
@@ -77,6 +75,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var vpnPermissionLauncher: ActivityResultLauncher<Intent>
     private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
+    private lateinit var serverSettingsLauncher: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,6 +99,25 @@ class MainActivity : ComponentActivity() {
                 pendingProfileId = -1L
             }
         }
+        serverSettingsLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+            val data = result.data ?: return@registerForActivityResult
+            val name = data.getStringExtra(ServerSettingsActivity.EXTRA_RESULT_NAME)?.trim().orEmpty()
+            val config = data.getStringExtra(ServerSettingsActivity.EXTRA_RESULT_CONFIG)?.trim().orEmpty()
+            if (name.isBlank() || config.isBlank()) return@registerForActivityResult
+
+            val profileId = data.getLongExtra(ServerSettingsActivity.EXTRA_PROFILE_ID, -1L)
+            if (profileId == -1L) {
+                viewModel.addProfile(name, config)
+            } else {
+                val existing = viewModel.profiles.value.firstOrNull { it.id == profileId }
+                if (existing != null) {
+                    viewModel.updateProfile(existing.copy(name = name, config = config))
+                }
+            }
+        }
         enableEdgeToEdge()
         setContent {
             XTLS_CORE_PROXYTheme {
@@ -116,6 +134,26 @@ class MainActivity : ComponentActivity() {
                     onDisconnect = { viewModel.disconnect(this) },
                     onOpenSplitTunnelSettings = {
                         startActivity(Intent(this, SplitTunnelSettingsActivity::class.java))
+                    },
+                    onAddProfile = {
+                        serverSettingsLauncher.launch(
+                            ServerSettingsActivity.createIntent(
+                                context = this,
+                                profileId = -1L,
+                                initialName = "",
+                                initialConfig = ""
+                            )
+                        )
+                    },
+                    onEditProfile = { profile ->
+                        serverSettingsLauncher.launch(
+                            ServerSettingsActivity.createIntent(
+                                context = this,
+                                profileId = profile.id,
+                                initialName = profile.name,
+                                initialConfig = profile.config
+                            )
+                        )
                     }
                 )
             }
@@ -146,7 +184,9 @@ private fun MainScreen(
     viewModel: VpnViewModel,
     onConnect: (Long) -> Unit,
     onDisconnect: () -> Unit,
-    onOpenSplitTunnelSettings: () -> Unit
+    onOpenSplitTunnelSettings: () -> Unit,
+    onAddProfile: () -> Unit,
+    onEditProfile: (Profile) -> Unit
 ) {
     val profiles by viewModel.profiles.collectAsState()
     val activeId by viewModel.activeProfileId.collectAsState()
@@ -154,8 +194,6 @@ private fun MainScreen(
     val logs by viewModel.logs.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    var showAddDialog by rememberSaveable { mutableStateOf(false) }
-    var editingProfile by remember { mutableStateOf<Profile?>(null) }
     var bottomSheetProfile by remember { mutableStateOf<Profile?>(null) }
 
     Scaffold(
@@ -173,7 +211,7 @@ private fun MainScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = onAddProfile) {
                 Icon(Icons.Default.Add, contentDescription = "Add profile")
             }
         }
@@ -267,31 +305,6 @@ private fun MainScreen(
         }
     }
 
-    if (showAddDialog) {
-        ProfileDialog(
-            title = "Add Profile",
-            onDismiss = { showAddDialog = false },
-            onSave = { name, config ->
-                viewModel.addProfile(name, config)
-                showAddDialog = false
-            }
-        )
-    }
-
-    if (editingProfile != null) {
-        val profile = editingProfile!!
-        ProfileDialog(
-            title = "Edit Profile",
-            initialName = profile.name,
-            initialConfig = profile.config,
-            onDismiss = { editingProfile = null },
-            onSave = { name, config ->
-                viewModel.updateProfile(profile.copy(name = name, config = config))
-                editingProfile = null
-            }
-        )
-    }
-
     if (bottomSheetProfile != null) {
         val profile = bottomSheetProfile!!
         ModalBottomSheet(
@@ -307,7 +320,7 @@ private fun MainScreen(
                 TextButton(
                     onClick = {
                         bottomSheetProfile = null
-                        editingProfile = profile
+                        onEditProfile(profile)
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -385,53 +398,3 @@ private fun ProfileRow(
     }
 }
 
-@Composable
-private fun ProfileDialog(
-    title: String,
-    initialName: String = "",
-    initialConfig: String = "",
-    onDismiss: () -> Unit,
-    onSave: (name: String, config: String) -> Unit
-) {
-    var name by rememberSaveable { mutableStateOf(initialName) }
-    var config by rememberSaveable { mutableStateOf(initialConfig) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = config,
-                    onValueChange = { config = it },
-                    label = { Text("vless:// URI or Xray JSON") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp),
-                    maxLines = 8
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(name.trim(), config.trim()) },
-                enabled = name.isNotBlank() && config.isNotBlank()
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
