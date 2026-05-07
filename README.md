@@ -39,12 +39,16 @@ From project root:
 ```powershell
 ./scripts/build-xray-aar.ps1
 ```
+Note: you can disable building for architectures like ArmV7a, X86 (386) or X86_64 by setting:
+-NoArmV7a, -NoX86, and/or -NoX86_64
 
 Linux/macOS:
 
 ```bash
 ./scripts/build-xray-aar.bash
 ```
+Similarly you can disable those achitectures by setting --
+
 
 Optional override (default is `main`):
 

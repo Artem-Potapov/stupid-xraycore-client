@@ -18,6 +18,34 @@ if [[ $# -ge 1 ]]; then OUTPUT_REL="$1"; fi
 if [[ $# -ge 2 ]]; then ANDROID_API="$2"; fi
 if [[ $# -ge 3 ]]; then XRAY_CORE_REF="$3"; fi
 
+
+while [[ $# -gt 0 ]]; do
+    case ${1} in
+        --no-armv7)
+            NO_ARMV7=true
+            shift
+            ;;
+        --no-x86)
+            NO_X86=true
+            shift
+            ;;
+        --no-amd64)
+            NO_AMD64=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"; exit 1
+            ;;
+    esac
+    shift
+done
+
+
+# Defaulting the optional argument
+[ -z "${NO_ARMV7}" ] && NO_ARMV7=false
+[ -z "${NO_X86}" ] && NO_X86=false
+[ -z "${NO_AMD64}" ] && NO_AMD64=false
+
 if ! command -v go >/dev/null 2>&1; then
   echo "go is required." >&2
   exit 1
@@ -62,9 +90,20 @@ fi
 echo "Initializing gomobile..."
 gomobile init
 
-echo "Running gomobile bind..."
+targets="android/arm64"
+if [[ "$NO_ARMV7" != "true" ]]; then
+  targets="$targets,android/arm"
+fi
+if [[ "$NO_X86" != "true" ]]; then
+  targets="$targets,android/386"
+fi
+if [[ "$NO_AMD64" != "true" ]]; then
+  targets="$targets,android/amd64"
+fi
+
+echo "Running gomobile bind for targets: $targets..."
 gomobile bind \
-  -target=android \
+  "-target=$targets" \
   "-androidapi=$ANDROID_API" \
   -o "$OUTPUT_PATH" \
   .

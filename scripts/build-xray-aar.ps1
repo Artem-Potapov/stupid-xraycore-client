@@ -1,7 +1,10 @@
 param(
     [string]$Output = "app/libs/xray.aar",
     [int]$AndroidApi = 26,
-    [string]$XrayCoreRef = ""
+    [string]$XrayCoreRef = "",
+    [switch]$NoArmV7 = $false,
+    [switch]$NoX86 = $false,
+    [switch]$NoAMD64 = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -72,10 +75,18 @@ try {
     Write-Host "Initializing gomobile..."
     Invoke-Checked { gomobile init } "gomobile init failed"
 
+    [string]$targets = ""
+    $targets += "android/arm64"
+    if (! $NoArmV7) { $targets += ",android/arm" }
+    if (! $NoX86) { $targets += ",android/386" }
+    if (! $NoAMD64) { $targets += ",android/amd64" }
+
+    echo "Building AAR for targets: $targets"
+
     Write-Host "Running gomobile bind..."
     Invoke-Checked {
         gomobile bind `
-            -target=android `
+            "-target=$targets" `
             "-androidapi=$($AndroidApi)" `
             -o $outputPath `
             .
