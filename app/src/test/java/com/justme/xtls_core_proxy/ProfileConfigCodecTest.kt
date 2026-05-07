@@ -473,4 +473,23 @@ class ProfileConfigCodecTest {
             rebuilt.contains("encryption=")
         )
     }
+
+    @Test
+    fun vlessUri_roundTrip_preservesXhttpExtraJson() {
+        val extraJson = """{"xPaddingBytes":"100-1000","scMaxEachPostBytes":"1000000"}"""
+        val original = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=xhttp&security=tls&sni=cdn.example.com&path=%2Fxh" +
+            "&extra=" + java.net.URLEncoder.encode(extraJson, "UTF-8")
+
+        val parsed = ProfileConfigCodec.parseVlessUri(original)
+        assertEquals(extraJson, parsed.xhttpExtraJson)
+
+        val rebuilt = ProfileConfigCodec.toVlessUri(parsed)
+        val reparsed = ProfileConfigCodec.parseVlessUri(rebuilt)
+        assertEquals(
+            "extra JSON content lost across round-trip",
+            JSONObject(extraJson).toString(),
+            JSONObject(requireNotNull(reparsed.xhttpExtraJson)).toString()
+        )
+    }
 }

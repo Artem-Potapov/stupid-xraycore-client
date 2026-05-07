@@ -174,4 +174,23 @@ class ConfigBuilderTest {
 
         assertEquals("none", user.getString("encryption"))
     }
+
+    @Test
+    fun fromVlessUri_preservesXhttpExtraJson() {
+        // %7B%22xPaddingBytes%22%3A%22100-1000%22%7D == {"xPaddingBytes":"100-1000"}
+        val uri = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=xhttp&security=tls&sni=cdn.example.com&path=%2Fxh" +
+            "&extra=%7B%22xPaddingBytes%22%3A%22100-1000%22%7D"
+
+        val config = JSONObject(ConfigBuilder.fromVlessUri(uri))
+        val xhttp = config.getJSONArray("outbounds").getJSONObject(0)
+            .getJSONObject("streamSettings")
+            .getJSONObject("xhttpSettings")
+
+        assertTrue("xhttpSettings must contain extra", xhttp.has("extra"))
+        assertEquals(
+            "100-1000",
+            xhttp.getJSONObject("extra").getString("xPaddingBytes")
+        )
+    }
 }

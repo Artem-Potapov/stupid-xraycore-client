@@ -177,7 +177,8 @@ object ProfileConfigCodec {
             grpcServiceName = params["serviceName"],
             kcpSeed = params["seed"],
             quicKey = params["key"],
-            encryption = params["encryption"]?.ifBlank { null } ?: "none"
+            encryption = params["encryption"]?.ifBlank { null } ?: "none",
+            xhttpExtraJson = params["extra"]?.ifBlank { null }
         )
     }
 
