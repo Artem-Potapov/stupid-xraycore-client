@@ -187,6 +187,11 @@ logs flow through `LogRepository` back to the UI.
 
 > TODO: Add explicit feature flags if runtime behavior needs environment-based toggles.
 
+# IMPORTANT NOTICE
+**Always output tool calls in the official MCP JSON format. Do not provide a text summary of the call before executing it.**
+**DO NOT** use backslashes for absolute paths in tool calls; always use OS-agnostic forward slashed paths (for example, `/Users/User/XTLS_CORE_PROXY/app/src/main/java/...` instead of `C:\Users\user\XTLS_CORE_PROXY\app\src\main\java\...`).
+When you list a directory, MAKE SURE you leave a trailing slash at the end of the path to indicate it's a directory, and not a file. For example, `list_dir("app/src/main/java/")` instead of `list_dir("app/src/main/java")`.
+
 ## Further Reading
 - [README](README.md)
 - [Geo files note](app/src/main/assets/WHERE_TO_GET_GEOFILES.md)
