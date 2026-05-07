@@ -99,7 +99,7 @@ object ConfigBuilder {
                 put("port", profile.port)
                 put("users", JSONArray().put(JSONObject().apply {
                     put("id", profile.uuid)
-                    put("encryption", "none")
+                    put("encryption", profile.encryption)
                     if (profile.flow.isNotBlank()) {
                         put("flow", profile.flow)
                     }
@@ -280,5 +280,6 @@ data class VlessProfile(
     val kcpSeed: String? = null,
     val quicKey: String? = null,
     val xhttpExtraJson: String? = null,
-    val finalmaskJson: String? = null
+    val finalmaskJson: String? = null,
+    val encryption: String = "none"
 )

@@ -418,11 +418,59 @@ class ProfileConfigCodecTest {
         assertFalse(withoutFinalmaskSs.has("finalmask"))
     }
 
+    @Test
+    fun parseVlessProfileFromJson_readsNonDefaultEncryption() {
+        val json = """
+            {
+              "outbounds": [{
+                "protocol": "vless",
+                "settings": { "vnext": [{ "address": "a.com", "port": 443,
+                  "users": [{"id":"aaaa","encryption":"mlkem768x25519"}] }] },
+                "streamSettings": { "network": "tcp", "security": "none" }
+              }]
+            }
+        """.trimIndent()
+        val profile = ProfileConfigCodec.parseVlessProfileFromJson(json)
+        assertEquals("mlkem768x25519", profile.encryption)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun realityConfigWithoutPublicKey_stillFailsValidation() {
         ConfigBuilder.buildRuntimeConfig(
             "vless://11111111-1111-1111-1111-111111111111@demo.example:443" +
                 "?type=tcp&security=reality&sid=1a2b3c&sni=cdn.example.com&fp=chrome"
+        )
+    }
+
+    @Test
+    fun vlessUri_roundTrip_preservesEncryption() {
+        val original = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=tcp&security=none&encryption=mlkem768x25519"
+
+        val parsed = ProfileConfigCodec.parseVlessUri(original)
+        assertEquals("mlkem768x25519", parsed.encryption)
+
+        val rebuilt = ProfileConfigCodec.toVlessUri(parsed)
+        assertTrue(
+            "rebuilt URI should contain encryption=mlkem768x25519, was: $rebuilt",
+            rebuilt.contains("encryption=mlkem768x25519")
+        )
+
+        val reparsed = ProfileConfigCodec.parseVlessUri(rebuilt)
+        assertEquals("mlkem768x25519", reparsed.encryption)
+    }
+
+    @Test
+    fun vlessUri_roundTrip_omitsEncryptionWhenDefault() {
+        val original = "vless://11111111-1111-1111-1111-111111111111@example.com:443?type=tcp&security=none"
+
+        val parsed = ProfileConfigCodec.parseVlessUri(original)
+        assertEquals("none", parsed.encryption)
+
+        val rebuilt = ProfileConfigCodec.toVlessUri(parsed)
+        assertFalse(
+            "rebuilt URI should not include encryption=none, was: $rebuilt",
+            rebuilt.contains("encryption=")
         )
     }
 }

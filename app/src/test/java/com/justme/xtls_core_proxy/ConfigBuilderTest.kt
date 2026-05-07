@@ -143,4 +143,35 @@ class ConfigBuilderTest {
         assertEquals("h2", reality.getJSONArray("alpn").getString(0))
         assertEquals("/index", reality.getString("spiderX"))
     }
+
+    @Test
+    fun fromVlessUri_preservesEncryptionParam() {
+        val uri = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=tcp&security=none&encryption=mlkem768x25519"
+
+        val config = JSONObject(ConfigBuilder.fromVlessUri(uri))
+        val user = config.getJSONArray("outbounds").getJSONObject(0)
+            .getJSONObject("settings")
+            .getJSONArray("vnext")
+            .getJSONObject(0)
+            .getJSONArray("users")
+            .getJSONObject(0)
+
+        assertEquals("mlkem768x25519", user.getString("encryption"))
+    }
+
+    @Test
+    fun fromVlessUri_defaultsEncryptionToNoneWhenAbsent() {
+        val uri = "vless://11111111-1111-1111-1111-111111111111@example.com:443?type=tcp&security=none"
+
+        val config = JSONObject(ConfigBuilder.fromVlessUri(uri))
+        val user = config.getJSONArray("outbounds").getJSONObject(0)
+            .getJSONObject("settings")
+            .getJSONArray("vnext")
+            .getJSONObject(0)
+            .getJSONArray("users")
+            .getJSONObject(0)
+
+        assertEquals("none", user.getString("encryption"))
+    }
 }

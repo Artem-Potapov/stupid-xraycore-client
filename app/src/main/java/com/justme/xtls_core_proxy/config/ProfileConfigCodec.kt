@@ -33,7 +33,8 @@ data class SimpleServerFields(
     val kcpSeed: String = "",
     val quicKey: String = "",
     val xhttpExtraJson: String = "",
-    val finalmaskJson: String = ""
+    val finalmaskJson: String = "",
+    val encryption: String = ""
 ) {
     fun toVlessProfile(): VlessProfile {
         val parsedPort = port.toIntOrNull()
@@ -68,7 +69,8 @@ data class SimpleServerFields(
             kcpSeed = kcpSeed.trim().ifBlank { null },
             quicKey = quicKey.trim().ifBlank { null },
             xhttpExtraJson = normalizedXhttpExtra,
-            finalmaskJson = normalizedFinalmask
+            finalmaskJson = normalizedFinalmask,
+            encryption = encryption.trim().ifBlank { "none" }
         )
     }
 
@@ -106,7 +108,8 @@ data class SimpleServerFields(
                 kcpSeed = profile.kcpSeed.orEmpty(),
                 quicKey = profile.quicKey.orEmpty(),
                 xhttpExtraJson = profile.xhttpExtraJson.orEmpty(),
-                finalmaskJson = profile.finalmaskJson.orEmpty()
+                finalmaskJson = profile.finalmaskJson.orEmpty(),
+                encryption = profile.encryption
             )
         }
     }
@@ -173,7 +176,8 @@ object ProfileConfigCodec {
             transportHost = params["host"],
             grpcServiceName = params["serviceName"],
             kcpSeed = params["seed"],
-            quicKey = params["key"]
+            quicKey = params["key"],
+            encryption = params["encryption"]?.ifBlank { null } ?: "none"
         )
     }
 
@@ -182,6 +186,9 @@ object ProfileConfigCodec {
             "type" to profile.network.ifBlank { "tcp" },
             "security" to profile.security.ifBlank { "none" }
         )
+        if (profile.encryption.isNotBlank() && !profile.encryption.equals("none", ignoreCase = true)) {
+            params["encryption"] = profile.encryption
+        }
         if (profile.flow.isNotBlank()) params["flow"] = profile.flow
         if (profile.serverName.isNotBlank() && profile.serverName != profile.host) {
             params["sni"] = profile.serverName
@@ -285,7 +292,8 @@ object ProfileConfigCodec {
             kcpSeed = transport.fifth,
             quicKey = transport.sixth,
             xhttpExtraJson = xhttpExtraJson,
-            finalmaskJson = finalmaskJson
+            finalmaskJson = finalmaskJson,
+            encryption = user.optString("encryption").ifBlank { "none" }
         )
     }
 
@@ -365,7 +373,7 @@ object ProfileConfigCodec {
             put("port", updatedProfile.port)
             put("users", JSONArray().put(JSONObject().apply {
                 put("id", updatedProfile.uuid)
-                put("encryption", "none")
+                put("encryption", updatedProfile.encryption)
                 if (updatedProfile.flow.isNotBlank()) {
                     put("flow", updatedProfile.flow)
                 }
