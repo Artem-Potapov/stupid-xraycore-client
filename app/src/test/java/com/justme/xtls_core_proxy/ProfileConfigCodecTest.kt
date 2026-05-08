@@ -511,12 +511,24 @@ class ProfileConfigCodecTest {
 
     @Test
     fun vlessUri_roundTrip_preservesGrpcModeAndAuthority() {
-        // 'authority' parsing is added in a later task; this test pins both at once.
         val original = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
             "?type=grpc&security=tls&sni=cdn.example.com&serviceName=svc&mode=multi"
 
         val parsed = ProfileConfigCodec.parseVlessUri(original)
         assertEquals("multi", parsed.mode)
+    }
+
+    @Test
+    fun vlessUri_roundTrip_preservesGrpcAuthority() {
+        val original = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=grpc&security=tls&sni=cdn.example.com&serviceName=svc&authority=auth.example.com"
+
+        val parsed = ProfileConfigCodec.parseVlessUri(original)
+        assertEquals("auth.example.com", parsed.grpcAuthority)
+
+        val rebuilt = ProfileConfigCodec.toVlessUri(parsed)
+        val reparsed = ProfileConfigCodec.parseVlessUri(rebuilt)
+        assertEquals("auth.example.com", reparsed.grpcAuthority)
     }
 
     @Test

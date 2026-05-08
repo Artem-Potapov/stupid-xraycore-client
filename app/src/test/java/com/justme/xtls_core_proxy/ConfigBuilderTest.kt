@@ -219,4 +219,17 @@ class ConfigBuilderTest {
 
         assertEquals("multi", grpc.getString("mode"))
     }
+
+    @Test
+    fun fromVlessUri_grpcAuthorityWritesIntoGrpcSettings() {
+        val uri = "vless://11111111-1111-1111-1111-111111111111@example.com:443" +
+            "?type=grpc&security=tls&sni=cdn.example.com&serviceName=svc&authority=auth.example.com"
+
+        val config = JSONObject(ConfigBuilder.fromVlessUri(uri))
+        val grpc = config.getJSONArray("outbounds").getJSONObject(0)
+            .getJSONObject("streamSettings")
+            .getJSONObject("grpcSettings")
+
+        assertEquals("auth.example.com", grpc.getString("authority"))
+    }
 }

@@ -178,6 +178,7 @@ object ProfileConfigCodec {
             transportPath = params["path"],
             transportHost = params["host"],
             grpcServiceName = params["serviceName"],
+            grpcAuthority = params["authority"]?.ifBlank { null },
             kcpSeed = params["seed"],
             quicKey = params["key"],
             encryption = params["encryption"]?.ifBlank { null } ?: "none",
@@ -209,6 +210,7 @@ object ProfileConfigCodec {
         if (!profile.transportPath.isNullOrBlank()) params["path"] = profile.transportPath
         if (!profile.transportHost.isNullOrBlank()) params["host"] = profile.transportHost
         if (!profile.grpcServiceName.isNullOrBlank()) params["serviceName"] = profile.grpcServiceName
+        if (!profile.grpcAuthority.isNullOrBlank()) params["authority"] = profile.grpcAuthority
         if (!profile.kcpSeed.isNullOrBlank()) params["seed"] = profile.kcpSeed
         if (!profile.quicKey.isNullOrBlank()) params["key"] = profile.quicKey
 
