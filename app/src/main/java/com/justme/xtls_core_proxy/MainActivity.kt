@@ -69,7 +69,7 @@ import com.justme.xtls_core_proxy.db.Subscription
 import com.justme.xtls_core_proxy.log.LogRepository
 import com.justme.xtls_core_proxy.log.VpnConnectionState
 import com.justme.xtls_core_proxy.settings.ServerSettingsActivity
-import com.justme.xtls_core_proxy.split.SplitTunnelSettingsActivity
+import com.justme.xtls_core_proxy.settings.SettingsHubActivity
 import com.justme.xtls_core_proxy.state.SubGroup
 import com.justme.xtls_core_proxy.state.VpnViewModel
 import com.justme.xtls_core_proxy.subs.SubscriptionFormatting
@@ -139,8 +139,8 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onDisconnect = { viewModel.disconnect(this) },
-                    onOpenSplitTunnelSettings = {
-                        startActivity(Intent(this, SplitTunnelSettingsActivity::class.java))
+                    onOpenSettings = {
+                        startActivity(Intent(this, SettingsHubActivity::class.java))
                     },
                     onOpenSubscriptions = {
                         startActivity(Intent(this, SubscriptionsActivity::class.java))
@@ -199,7 +199,7 @@ private fun MainScreen(
     viewModel: VpnViewModel,
     onConnect: (Long) -> Unit,
     onDisconnect: () -> Unit,
-    onOpenSplitTunnelSettings: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenSubscriptions: () -> Unit,
     onAddProfile: () -> Unit,
     onEditProfile: (Profile) -> Unit
@@ -224,10 +224,10 @@ private fun MainScreen(
                             contentDescription = "Subscriptions"
                         )
                     }
-                    IconButton(onClick = onOpenSplitTunnelSettings) {
+                    IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Split tunnel settings"
+                            contentDescription = "Settings"
                         )
                     }
                 }

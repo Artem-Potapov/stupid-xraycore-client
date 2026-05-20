@@ -42,6 +42,11 @@
             android:theme="@style/Theme.XTLS_CORE_PROXY" />
 
         <activity
+            android:name=".settings.SettingsHubActivity"
+            android:exported="false"
+            android:theme="@style/Theme.XTLS_CORE_PROXY" />
+
+        <activity
             android:name=".settings.ServerSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.XTLS_CORE_PROXY" />
