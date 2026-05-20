@@ -1,9 +1,6 @@
 package com.justme.xtls_core_proxy.split
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import java.util.LinkedHashMap
 
 object SplitTunnelRepository {
     private const val PREFS_NAME = "xray_prefs"
@@ -31,24 +28,6 @@ object SplitTunnelRepository {
         }
     }
 
-    fun loadInstalledApps(context: Context): List<AppEntry> {
-        val packageManager = context.packageManager
-        val launchIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        val resolvedActivities = packageManager.queryIntentActivities(launchIntent, PackageManager.MATCH_DEFAULT_ONLY)
-        val unique = LinkedHashMap<String, AppEntry>()
-
-        for (activity in resolvedActivities) {
-            val packageName = activity.activityInfo?.packageName ?: continue
-            val activityInfo = activity.activityInfo
-            val appName = activity.loadLabel(packageManager)
-                .toString()
-                .ifBlank { packageName }
-            val icon = runCatching { activityInfo.loadIcon(packageManager) }.getOrNull()
-            unique[packageName] = AppEntry(packageName = packageName, appName = appName, icon = icon)
-        }
-
-        return unique.values.sortedBy { it.appName.lowercase() }
-    }
+    fun loadInstalledApps(context: Context): List<AppEntry> =
+        com.justme.xtls_core_proxy.apps.InstalledAppsLoader.loadInstalled(context)
 }
