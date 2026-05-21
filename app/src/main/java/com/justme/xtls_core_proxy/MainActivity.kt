@@ -60,10 +60,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.justme.xtls_core_proxy.R
 import com.justme.xtls_core_proxy.db.Profile
 import com.justme.xtls_core_proxy.db.Subscription
 import com.justme.xtls_core_proxy.log.LogRepository
@@ -216,18 +219,18 @@ private fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Xray Tun") },
+                title = { Text(stringResource(R.string.main_title)) },
                 actions = {
                     IconButton(onClick = onOpenSubscriptions) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = "Subscriptions"
+                            contentDescription = stringResource(R.string.main_cd_subscriptions)
                         )
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
+                            contentDescription = stringResource(R.string.main_cd_settings)
                         )
                     }
                 }
@@ -235,7 +238,10 @@ private fun MainScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddProfile) {
-                Icon(Icons.Default.Add, contentDescription = "Add profile")
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.main_cd_add_profile)
+                )
             }
         }
     ) { innerPadding ->
@@ -250,13 +256,19 @@ private fun MainScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "State: ${state.name}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = stringResource(
+                        R.string.main_state_label,
+                        vpnConnectionStateLabel(state)
+                    ),
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 if (state == VpnConnectionState.CONNECTED ||
                     state == VpnConnectionState.CONNECTING ||
                     state == VpnConnectionState.PAUSED
                 ) {
                     OutlinedButton(onClick = onDisconnect) {
-                        Text("Disconnect")
+                        Text(stringResource(R.string.main_button_disconnect))
                     }
                 }
             }
@@ -281,7 +293,7 @@ private fun MainScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No profiles yet.\nTap + to add a server, or use the cloud icon to add a subscription.",
+                        text = stringResource(R.string.main_empty_profiles),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -294,7 +306,9 @@ private fun MainScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (view.manual.isNotEmpty()) {
-                        item(key = "h-manual") { SectionHeader("My profiles") }
+                        item(key = "h-manual") {
+                            SectionHeader(stringResource(R.string.main_section_my_profiles))
+                        }
                         items(view.manual, key = { "p-${it.id}" }) { profile ->
                             ProfileRow(
                                 profile = profile,
@@ -335,7 +349,10 @@ private fun MainScreen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Logs", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.main_logs_title),
+                style = MaterialTheme.typography.titleMedium
+            )
             Spacer(modifier = Modifier.height(4.dp))
 
             Surface(
@@ -376,7 +393,7 @@ private fun MainScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Edit")
+                    Text(stringResource(R.string.main_action_edit))
                 }
                 TextButton(
                     onClick = {
@@ -385,7 +402,10 @@ private fun MainScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        stringResource(R.string.main_action_delete),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -411,6 +431,7 @@ private fun SubscriptionGroupHeader(
     onToggle: () -> Unit,
     onRefresh: () -> Unit
 ) {
+    val context = LocalContext.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -425,7 +446,9 @@ private fun SubscriptionGroupHeader(
             Icon(
                 imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown
                 else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = if (isExpanded) "Collapse" else "Expand"
+                contentDescription = stringResource(
+                    if (isExpanded) R.string.main_cd_collapse else R.string.main_cd_expand
+                )
             )
             Spacer(modifier = Modifier.width(4.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -449,7 +472,7 @@ private fun SubscriptionGroupHeader(
                     }
                 }
                 Text(
-                    text = SubscriptionFormatting.lastSeenSummary(group.subscription),
+                    text = SubscriptionFormatting.lastSeenSummary(context, group.subscription),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -457,7 +480,10 @@ private fun SubscriptionGroupHeader(
                 )
             }
             IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh subscription")
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = stringResource(R.string.main_cd_refresh_subscription)
+                )
             }
         }
     }
@@ -531,10 +557,28 @@ private fun ProfileRow(
                 enabled = canConnect,
                 modifier = Modifier.padding(start = 8.dp)
             ) {
-                Text(if (isConnecting) "Connecting…" else "Connect")
+                Text(
+                    stringResource(
+                        if (isConnecting) R.string.main_button_connecting
+                        else R.string.main_button_connect
+                    )
+                )
             }
         }
     }
+}
+
+@Composable
+private fun vpnConnectionStateLabel(state: VpnConnectionState): String {
+    return stringResource(
+        when (state) {
+            VpnConnectionState.DISCONNECTED -> R.string.main_state_disconnected
+            VpnConnectionState.CONNECTING -> R.string.main_state_connecting
+            VpnConnectionState.CONNECTED -> R.string.main_state_connected
+            VpnConnectionState.PAUSED -> R.string.main_state_paused
+            VpnConnectionState.ERROR -> R.string.main_state_error
+        }
+    )
 }
 
 private fun isActive(profile: Profile, activeId: Long?, state: VpnConnectionState): Boolean {

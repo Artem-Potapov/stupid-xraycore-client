@@ -10,6 +10,7 @@
     <string name="vpn_revive_error">VPN service stopped due to an unknown error</string>
     <string name="vpn_status_paused">Paused: %1$s is open</string>
     <string name="vpn_status_connected">Connected</string>
+    <string name="vpn_status_connecting">Connecting</string>
     <string name="kill_switch_title">Kill-on-foreground apps</string>
     <string name="kill_switch_enabled">Enable kill-on-foreground</string>
     <string name="kill_switch_description">Fully disconnect the VPN whenever one of the selected apps is the foreground app. Reconnect automatically when it leaves the foreground.</string>
@@ -30,4 +31,167 @@
     <string name="settings_kill_title">Kill on foreground</string>
     <string name="settings_kill_subtitle">Fully disconnect the VPN when selected apps are open</string>
     <string name="settings_language_subtitle_auto">Auto</string>
+
+    <!-- MainActivity -->
+    <string name="main_title">Xray Tun</string>
+    <string name="main_cd_subscriptions">Subscriptions</string>
+    <string name="main_cd_settings">Settings</string>
+    <string name="main_cd_add_profile">Add profile</string>
+    <string name="main_state_label">State: %1$s</string>
+    <string name="main_state_disconnected">Disconnected</string>
+    <string name="main_state_connecting">Connecting</string>
+    <string name="main_state_connected">Connected</string>
+    <string name="main_state_paused">Paused</string>
+    <string name="main_state_error">Error</string>
+    <string name="main_button_disconnect">Disconnect</string>
+    <string name="main_empty_profiles">No profiles yet.\nTap + to add a server, or use the cloud icon to add a subscription.</string>
+    <string name="main_section_my_profiles">My profiles</string>
+    <string name="main_logs_title">Logs</string>
+    <string name="main_cd_collapse">Collapse</string>
+    <string name="main_cd_expand">Expand</string>
+    <string name="main_cd_refresh_subscription">Refresh subscription</string>
+    <string name="main_button_connect">Connect</string>
+    <string name="main_button_connecting">Connecting…</string>
+    <string name="main_action_edit">Edit</string>
+    <string name="main_action_delete">Delete</string>
+
+    <!-- App picker -->
+    <string name="apps_title_default">Select apps</string>
+    <string name="apps_search_label">Search apps</string>
+    <string name="apps_loading">Apps are loading…</string>
+    <string name="apps_cancel">Cancel</string>
+    <string name="apps_save">Save</string>
+
+    <!-- Split tunneling -->
+    <string name="split_title">Split tunneling</string>
+    <string name="split_mode_label">Mode</string>
+    <string name="split_mode_allow_only">Proxy selected apps only</string>
+    <string name="split_mode_block_except">Proxy all except selected</string>
+    <string name="split_selected_count">Selected apps: %1$d</string>
+    <string name="split_choose_apps">Choose apps →</string>
+    <string name="split_picker_title">Split-tunneled apps</string>
+
+    <!-- Server settings -->
+    <string name="server_title_edit">Edit server</string>
+    <string name="server_title_add">Add server</string>
+    <string name="server_cd_back">Back</string>
+    <string name="server_action_save">Save</string>
+    <string name="server_label_name">Server Name</string>
+    <string name="server_tab_simple">Simple</string>
+    <string name="server_tab_advanced">Advanced</string>
+    <string name="server_error_name_required">Name is required</string>
+    <string name="server_error_config_required">Config is required</string>
+    <string name="server_error_build_config_prefix">Unable to build config from Simple fields: %1$s</string>
+    <string name="server_error_parse_advanced_prefix">Unable to parse Advanced config into Simple fields: %1$s</string>
+    <string name="server_error_simple_invalid_prefix">Simple fields are invalid: %1$s</string>
+    <string name="server_error_validation_failed_prefix">Config validation failed: %1$s</string>
+    <string name="server_label_host">Server IP / Host</string>
+    <string name="server_label_port">Port</string>
+    <string name="server_label_network">Network</string>
+    <string name="server_network_tcp">TCP (Raw)</string>
+    <string name="server_network_kcp">mKCP</string>
+    <string name="server_network_ws">WebSocket</string>
+    <string name="server_network_httpupgrade">HTTPUpgrade</string>
+    <string name="server_network_xhttp">XHTTP</string>
+    <string name="server_network_h2">HTTP/2</string>
+    <string name="server_network_quic">QUIC</string>
+    <string name="server_network_grpc">gRPC</string>
+    <string name="server_label_uuid">UUID</string>
+    <string name="server_label_security">Security</string>
+    <string name="server_security_none">None</string>
+    <string name="server_security_reality">REALITY</string>
+    <string name="server_security_tls">TLS</string>
+    <string name="server_label_flow">Flow</string>
+    <string name="server_flow_none">None</string>
+    <string name="server_flow_xtls_rprx_vision">xtls-rprx-vision</string>
+    <string name="server_flow_xtls_rprx_vision_udp443">xtls-rprx-vision-udp443</string>
+    <string name="server_transport_path_label">%1$s Path</string>
+    <string name="server_transport_host_label">%1$s Host</string>
+    <string name="server_label_xhttp_extra_json">XHTTP extra (JSON object)</string>
+    <string name="server_hint_xhttp_extra">Applies to streamSettings.xhttpSettings.extra. Must be a JSON object fragment.</string>
+    <string name="server_label_grpc_service_name">gRPC Service Name</string>
+    <string name="server_label_grpc_authority">gRPC Authority</string>
+    <string name="server_label_kcp_seed">mKCP Seed</string>
+    <string name="server_label_finalmask_json">FinalMask (streamSettings.finalmask) JSON object</string>
+    <string name="server_hint_finalmask">FinalMask is stored on streamSettings.finalmask, not inside kcpSettings.</string>
+    <string name="server_label_quic_key">QUIC Key</string>
+    <string name="server_label_sni">SNI / Server Name</string>
+    <string name="server_label_fingerprint">Fingerprint</string>
+    <string name="server_fingerprint_chrome">chrome</string>
+    <string name="server_fingerprint_firefox">firefox</string>
+    <string name="server_fingerprint_safari">safari</string>
+    <string name="server_fingerprint_ios">ios</string>
+    <string name="server_fingerprint_android">android</string>
+    <string name="server_fingerprint_edge">edge</string>
+    <string name="server_fingerprint_360">360</string>
+    <string name="server_fingerprint_qq">qq</string>
+    <string name="server_fingerprint_random">random</string>
+    <string name="server_fingerprint_randomized">randomized</string>
+    <string name="server_label_short_id">Short ID</string>
+    <string name="server_label_public_key">Public Key</string>
+    <string name="server_label_alpn">ALPN</string>
+    <string name="server_alpn_none">None</string>
+    <string name="server_alpn_h3">h3</string>
+    <string name="server_alpn_h2">h2</string>
+    <string name="server_alpn_http11">http/1.1</string>
+    <string name="server_alpn_h3_h2_http11">h3,h2,http/1.1</string>
+    <string name="server_alpn_h3_h2">h3,h2</string>
+    <string name="server_alpn_h2_http11">h2,http/1.1</string>
+    <string name="server_label_spiderx">SpiderX</string>
+    <string name="server_label_allow_insecure">Allow Insecure</string>
+    <string name="server_allow_insecure_no">No</string>
+    <string name="server_allow_insecure_yes">Yes</string>
+    <string name="server_advanced_uri_or_json">vless:// URI or Xray JSON</string>
+    <string name="server_cd_format_json">Format JSON with 2-space indentation</string>
+    <string name="server_hint_advanced_save">Advanced changes are saved exactly as typed after validation. Click the format button to beautify JSON with 2-space indentation.</string>
+
+    <!-- Subscriptions: list -->
+    <string name="subs_title">Subscriptions</string>
+    <string name="subs_cd_back">Back</string>
+    <string name="subs_cd_add">Add subscription</string>
+    <string name="subs_empty">No subscriptions yet.\nTap + to add one.</string>
+    <string name="subs_delete_title">Delete subscription?</string>
+    <string name="subs_delete_message">This will remove the subscription and all of its profiles. Manually-added profiles are not affected.</string>
+    <string name="subs_button_delete">Delete</string>
+    <string name="subs_button_cancel">Cancel</string>
+
+    <!-- Subscriptions: edit -->
+    <string name="subs_edit_title_add">Add subscription</string>
+    <string name="subs_edit_title_edit">Edit subscription</string>
+    <string name="subs_edit_button_save">Save</string>
+    <string name="subs_edit_button_save_refresh">Save and refresh now</string>
+    <string name="subs_edit_tab_simple">Simple</string>
+    <string name="subs_edit_tab_advanced">Advanced</string>
+    <string name="subs_edit_error_name_required">Name is required</string>
+    <string name="subs_edit_error_url_format">URL must start with http:// or https://</string>
+    <string name="subs_edit_error_interval_not_integer">Update interval must be a positive integer or blank</string>
+    <string name="subs_edit_error_interval_min">Update interval must be at least 1 hour</string>
+    <string name="subs_edit_label_name">Subscription name</string>
+    <string name="subs_edit_label_url">Subscription URL</string>
+    <string name="subs_edit_label_interval">Update interval (hours)</string>
+    <string name="subs_edit_placeholder_interval">Leave empty to use server-provided</string>
+    <string name="subs_edit_label_user_agent">User-Agent override</string>
+    <string name="subs_edit_placeholder_user_agent">Leave empty to use the default User-Agent</string>
+    <string name="subs_edit_label_allow_insecure_tls">Allow insecure TLS</string>
+    <string name="subs_edit_option_no">No</string>
+    <string name="subs_edit_option_yes_insecure">Yes (per-connection)</string>
+
+    <!-- Subscriptions: formatting -->
+    <string name="subs_status_never_updated">Never updated</string>
+    <string name="subs_status_updated">Updated %1$s</string>
+    <string name="subs_status_interval">every %1$dh</string>
+    <string name="subs_status_error_suffix"> · %1$s</string>
+    <string name="subs_time_just_now">just now</string>
+    <string name="subs_time_minutes_ago">%1$dm ago</string>
+    <string name="subs_time_hours_ago">%1$dh ago</string>
+    <string name="subs_time_days_ago">%1$dd ago</string>
+    <string name="subs_time_months_ago">%1$dmo ago</string>
+
+    <!-- Subscriptions: errors -->
+    <string name="subs_error_url_scheme">Only http(s) URLs are supported</string>
+    <string name="subs_error_http_prefix">HTTP %1$d %2$s</string>
+    <string name="subs_error_body_too_large">Subscription body exceeds 2 MiB limit</string>
+    <string name="subs_error_network_prefix">Network error: %1$s</string>
+    <string name="subs_error_fetch_failed_prefix">Failed to fetch: %1$s</string>
+    <string name="subs_error_parse_lines_prefix">%1$d line(s) failed to parse</string>
 </resources>

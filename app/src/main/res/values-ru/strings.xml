@@ -11,6 +11,7 @@
     <string name="vpn_revive_error">VPN остановлен из-за неизвестной ошибки</string>
     <string name="vpn_status_paused">Приостановлено: открыто приложение %1$s</string>
     <string name="vpn_status_connected">Подключено</string>
+    <string name="vpn_status_connecting">Подключение</string>
     <string name="kill_switch_title">Приложения для отключения</string>
     <string name="kill_switch_enabled">Включить отключение при открытии</string>
     <string name="kill_switch_description">Полностью отключать VPN, когда одно из выбранных приложений становится активным. Автоматически переподключаться, когда оно уходит из активного состояния.</string>
@@ -31,4 +32,167 @@
     <string name="settings_kill_title">Отключение при открытии</string>
     <string name="settings_kill_subtitle">Полностью отключать VPN, когда выбранные приложения активны</string>
     <string name="settings_language_subtitle_auto">Авто</string>
+
+    <!-- MainActivity -->
+    <string name="main_title">Xray Tun</string>
+    <string name="main_cd_subscriptions">Подписки</string>
+    <string name="main_cd_settings">Настройки</string>
+    <string name="main_cd_add_profile">Добавить профиль</string>
+    <string name="main_state_label">Состояние: %1$s</string>
+    <string name="main_state_disconnected">Отключено</string>
+    <string name="main_state_connecting">Подключение</string>
+    <string name="main_state_connected">Подключено</string>
+    <string name="main_state_paused">Приостановлено</string>
+    <string name="main_state_error">Ошибка</string>
+    <string name="main_button_disconnect">Отключить</string>
+    <string name="main_empty_profiles">Профилей пока нет.\nНажмите +, чтобы добавить сервер, или значок облака, чтобы добавить подписку.</string>
+    <string name="main_section_my_profiles">Мои профили</string>
+    <string name="main_logs_title">Журнал</string>
+    <string name="main_cd_collapse">Свернуть</string>
+    <string name="main_cd_expand">Развернуть</string>
+    <string name="main_cd_refresh_subscription">Обновить подписку</string>
+    <string name="main_button_connect">Подключить</string>
+    <string name="main_button_connecting">Подключение…</string>
+    <string name="main_action_edit">Изменить</string>
+    <string name="main_action_delete">Удалить</string>
+
+    <!-- App picker -->
+    <string name="apps_title_default">Выбрать приложения</string>
+    <string name="apps_search_label">Поиск приложений</string>
+    <string name="apps_loading">Загрузка приложений…</string>
+    <string name="apps_cancel">Отмена</string>
+    <string name="apps_save">Сохранить</string>
+
+    <!-- Split tunneling -->
+    <string name="split_title">Раздельное туннелирование</string>
+    <string name="split_mode_label">Режим</string>
+    <string name="split_mode_allow_only">Проксировать только выбранные приложения</string>
+    <string name="split_mode_block_except">Проксировать все, кроме выбранных</string>
+    <string name="split_selected_count">Выбрано приложений: %1$d</string>
+    <string name="split_choose_apps">Выбрать приложения →</string>
+    <string name="split_picker_title">Приложения раздельного туннелирования</string>
+
+    <!-- Server settings -->
+    <string name="server_title_edit">Изменить сервер</string>
+    <string name="server_title_add">Добавить сервер</string>
+    <string name="server_cd_back">Назад</string>
+    <string name="server_action_save">Сохранить</string>
+    <string name="server_label_name">Имя сервера</string>
+    <string name="server_tab_simple">Простой</string>
+    <string name="server_tab_advanced">Расширенный</string>
+    <string name="server_error_name_required">Укажите имя</string>
+    <string name="server_error_config_required">Укажите конфигурацию</string>
+    <string name="server_error_build_config_prefix">Не удалось собрать конфигурацию из простых полей: %1$s</string>
+    <string name="server_error_parse_advanced_prefix">Не удалось разобрать расширенную конфигурацию в простые поля: %1$s</string>
+    <string name="server_error_simple_invalid_prefix">Простые поля заполнены неверно: %1$s</string>
+    <string name="server_error_validation_failed_prefix">Проверка конфигурации не пройдена: %1$s</string>
+    <string name="server_label_host">IP / хост сервера</string>
+    <string name="server_label_port">Порт</string>
+    <string name="server_label_network">Сеть</string>
+    <string name="server_network_tcp">TCP (Raw)</string>
+    <string name="server_network_kcp">mKCP</string>
+    <string name="server_network_ws">WebSocket</string>
+    <string name="server_network_httpupgrade">HTTPUpgrade</string>
+    <string name="server_network_xhttp">XHTTP</string>
+    <string name="server_network_h2">HTTP/2</string>
+    <string name="server_network_quic">QUIC</string>
+    <string name="server_network_grpc">gRPC</string>
+    <string name="server_label_uuid">UUID</string>
+    <string name="server_label_security">Безопасность</string>
+    <string name="server_security_none">Нет</string>
+    <string name="server_security_reality">REALITY</string>
+    <string name="server_security_tls">TLS</string>
+    <string name="server_label_flow">Flow</string>
+    <string name="server_flow_none">Нет</string>
+    <string name="server_flow_xtls_rprx_vision">xtls-rprx-vision</string>
+    <string name="server_flow_xtls_rprx_vision_udp443">xtls-rprx-vision-udp443</string>
+    <string name="server_transport_path_label">Путь %1$s</string>
+    <string name="server_transport_host_label">Хост %1$s</string>
+    <string name="server_label_xhttp_extra_json">Доп. параметры XHTTP (JSON-объект)</string>
+    <string name="server_hint_xhttp_extra">Применяется к streamSettings.xhttpSettings.extra. Должен быть фрагмент JSON-объекта.</string>
+    <string name="server_label_grpc_service_name">Имя службы gRPC</string>
+    <string name="server_label_grpc_authority">Authority gRPC</string>
+    <string name="server_label_kcp_seed">Seed mKCP</string>
+    <string name="server_label_finalmask_json">FinalMask (streamSettings.finalmask) JSON-объект</string>
+    <string name="server_hint_finalmask">FinalMask хранится в streamSettings.finalmask, а не внутри kcpSettings.</string>
+    <string name="server_label_quic_key">Ключ QUIC</string>
+    <string name="server_label_sni">SNI / имя сервера</string>
+    <string name="server_label_fingerprint">Отпечаток</string>
+    <string name="server_fingerprint_chrome">chrome</string>
+    <string name="server_fingerprint_firefox">firefox</string>
+    <string name="server_fingerprint_safari">safari</string>
+    <string name="server_fingerprint_ios">ios</string>
+    <string name="server_fingerprint_android">android</string>
+    <string name="server_fingerprint_edge">edge</string>
+    <string name="server_fingerprint_360">360</string>
+    <string name="server_fingerprint_qq">qq</string>
+    <string name="server_fingerprint_random">random</string>
+    <string name="server_fingerprint_randomized">randomized</string>
+    <string name="server_label_short_id">Short ID</string>
+    <string name="server_label_public_key">Публичный ключ</string>
+    <string name="server_label_alpn">ALPN</string>
+    <string name="server_alpn_none">Нет</string>
+    <string name="server_alpn_h3">h3</string>
+    <string name="server_alpn_h2">h2</string>
+    <string name="server_alpn_http11">http/1.1</string>
+    <string name="server_alpn_h3_h2_http11">h3,h2,http/1.1</string>
+    <string name="server_alpn_h3_h2">h3,h2</string>
+    <string name="server_alpn_h2_http11">h2,http/1.1</string>
+    <string name="server_label_spiderx">SpiderX</string>
+    <string name="server_label_allow_insecure">Разрешить небезопасное</string>
+    <string name="server_allow_insecure_no">Нет</string>
+    <string name="server_allow_insecure_yes">Да</string>
+    <string name="server_advanced_uri_or_json">vless:// URI или JSON Xray</string>
+    <string name="server_cd_format_json">Форматировать JSON с отступом в 2 пробела</string>
+    <string name="server_hint_advanced_save">Изменения в расширенном режиме сохраняются как введено после проверки. Нажмите кнопку форматирования, чтобы отформатировать JSON с отступом в 2 пробела.</string>
+
+    <!-- Subscriptions: list -->
+    <string name="subs_title">Подписки</string>
+    <string name="subs_cd_back">Назад</string>
+    <string name="subs_cd_add">Добавить подписку</string>
+    <string name="subs_empty">Подписок пока нет.\nНажмите +, чтобы добавить.</string>
+    <string name="subs_delete_title">Удалить подписку?</string>
+    <string name="subs_delete_message">Подписка и все её профили будут удалены. Вручную добавленные профили не затронуты.</string>
+    <string name="subs_button_delete">Удалить</string>
+    <string name="subs_button_cancel">Отмена</string>
+
+    <!-- Subscriptions: edit -->
+    <string name="subs_edit_title_add">Добавить подписку</string>
+    <string name="subs_edit_title_edit">Изменить подписку</string>
+    <string name="subs_edit_button_save">Сохранить</string>
+    <string name="subs_edit_button_save_refresh">Сохранить и обновить сейчас</string>
+    <string name="subs_edit_tab_simple">Простой</string>
+    <string name="subs_edit_tab_advanced">Расширенный</string>
+    <string name="subs_edit_error_name_required">Укажите название</string>
+    <string name="subs_edit_error_url_format">URL должен начинаться с http:// или https://</string>
+    <string name="subs_edit_error_interval_not_integer">Интервал обновления должен быть положительным целым числом или пустым</string>
+    <string name="subs_edit_error_interval_min">Интервал обновления должен быть не менее 1 часа</string>
+    <string name="subs_edit_label_name">Название подписки</string>
+    <string name="subs_edit_label_url">URL подписки</string>
+    <string name="subs_edit_label_interval">Интервал обновления (часы)</string>
+    <string name="subs_edit_placeholder_interval">Оставьте пустым, чтобы использовать значение с сервера</string>
+    <string name="subs_edit_label_user_agent">Переопределение User-Agent</string>
+    <string name="subs_edit_placeholder_user_agent">Оставьте пустым для User-Agent по умолчанию</string>
+    <string name="subs_edit_label_allow_insecure_tls">Разрешить небезопасный TLS</string>
+    <string name="subs_edit_option_no">Нет</string>
+    <string name="subs_edit_option_yes_insecure">Да (для каждого подключения)</string>
+
+    <!-- Subscriptions: formatting -->
+    <string name="subs_status_never_updated">Никогда не обновлялось</string>
+    <string name="subs_status_updated">Обновлено %1$s</string>
+    <string name="subs_status_interval">каждые %1$d ч</string>
+    <string name="subs_status_error_suffix"> · %1$s</string>
+    <string name="subs_time_just_now">только что</string>
+    <string name="subs_time_minutes_ago">%1$d мин назад</string>
+    <string name="subs_time_hours_ago">%1$d ч назад</string>
+    <string name="subs_time_days_ago">%1$d д назад</string>
+    <string name="subs_time_months_ago">%1$d мес назад</string>
+
+    <!-- Subscriptions: errors -->
+    <string name="subs_error_url_scheme">Поддерживаются только URL http(s)</string>
+    <string name="subs_error_http_prefix">HTTP %1$d %2$s</string>
+    <string name="subs_error_body_too_large">Тело подписки превышает лимит 2 МБ</string>
+    <string name="subs_error_network_prefix">Ошибка сети: %1$s</string>
+    <string name="subs_error_fetch_failed_prefix">Не удалось получить: %1$s</string>
+    <string name="subs_error_parse_lines_prefix">Не удалось разобрать %1$d строк(и)</string>
 </resources>
