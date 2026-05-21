@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">XTLS_CORE_PROXY</string>
+    <string name="vpn_channel_name">VPN-туннель</string>
+    <string name="vpn_channel_description">Уведомления о состоянии VPN-туннеля Xray</string>
+    <string name="vpn_notification_title">XTLS Core Proxy</string>
+
+    <!-- Kill-on-foreground feature -->
+    <string name="vpn_error_channel_name">Ошибки VPN</string>
+    <string name="vpn_error_channel_description">Уведомления о непредвиденных сбоях VPN</string>
+    <string name="vpn_revive_error">VPN остановлен из-за неизвестной ошибки</string>
+    <string name="vpn_status_paused">Приостановлено: открыто приложение %1$s</string>
+    <string name="vpn_status_connected">Подключено</string>
+    <string name="kill_switch_title">Приложения для отключения</string>
+    <string name="kill_switch_enabled">Включить отключение при открытии</string>
+    <string name="kill_switch_description">Полностью отключать VPN, когда одно из выбранных приложений становится активным. Автоматически переподключаться, когда оно уходит из активного состояния.</string>
+    <string name="kill_switch_permission_required">Для работы функции нужен доступ к статистике использования</string>
+    <string name="kill_switch_open_settings">Открыть настройки доступа к статистике</string>
+    <string name="kill_switch_select_apps">Выбрать приложения</string>
+
+    <!-- Language picker -->
+    <string name="settings_language_title">Язык</string>
+    <string name="lang_auto">Авто</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+
+    <!-- Settings hub -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_split_title">Раздельное туннелирование</string>
+    <string name="settings_split_subtitle">Выберите приложения, которые пойдут через VPN</string>
+    <string name="settings_kill_title">Отключение при открытии</string>
+    <string name="settings_kill_subtitle">Полностью отключать VPN, когда выбранные приложения активны</string>
+    <string name="settings_language_subtitle_auto">Авто</string>
+</resources>

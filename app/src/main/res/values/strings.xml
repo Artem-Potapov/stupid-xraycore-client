@@ -16,4 +16,18 @@
     <string name="kill_switch_permission_required">Grant Usage Access to enable this feature</string>
     <string name="kill_switch_open_settings">Open Usage Access settings</string>
     <string name="kill_switch_select_apps">Select apps</string>
+
+    <!-- Language picker -->
+    <string name="settings_language_title">Language</string>
+    <string name="lang_auto">Auto</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Русский</string>
+
+    <!-- Settings hub -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_split_title">Split tunneling</string>
+    <string name="settings_split_subtitle">Choose which apps go through the VPN</string>
+    <string name="settings_kill_title">Kill on foreground</string>
+    <string name="settings_kill_subtitle">Fully disconnect the VPN when selected apps are open</string>
+    <string name="settings_language_subtitle_auto">Auto</string>
 </resources>
