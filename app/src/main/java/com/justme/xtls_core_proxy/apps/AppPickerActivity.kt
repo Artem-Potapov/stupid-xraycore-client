@@ -141,11 +141,12 @@ private fun AppPickerScreen(
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             if (filteredApps.isEmpty()) {
+                val stillLoading = appsState.value.isEmpty()
                 item {
-                    //The load actually takes quite a lot of time - so although no apps may be found,
-                    //It's better to just trick the user into staying.
                     Text(
-                        stringResource(R.string.apps_loading),
+                        stringResource(
+                            if (stillLoading) R.string.apps_loading else R.string.apps_no_matches
+                        ),
                         modifier = Modifier.padding(vertical = 16.dp)
                     )
                 }

@@ -61,6 +61,7 @@
     <string name="apps_title_default">Select apps</string>
     <string name="apps_search_label">Search apps</string>
     <string name="apps_loading">Apps are loading…</string>
+    <string name="apps_no_matches">No apps match your search.</string>
     <string name="apps_cancel">Cancel</string>
     <string name="apps_save">Save</string>
 
