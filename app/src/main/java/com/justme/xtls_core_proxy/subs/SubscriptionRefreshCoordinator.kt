@@ -4,6 +4,7 @@ import android.content.Context
 import com.justme.xtls_core_proxy.R
 import com.justme.xtls_core_proxy.db.AppDatabase
 import com.justme.xtls_core_proxy.db.Profile
+import com.justme.xtls_core_proxy.i18n.SupportedLanguage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,9 +26,10 @@ object SubscriptionRefreshCoordinator {
         inFlight[subId]?.let { existing ->
             if (existing.isActive) return existing
         }
+        val localizedContext = SupportedLanguage.localize(context)
         val job = scope.launch(Dispatchers.IO) {
             try {
-                runRefresh(context, subId, activeProfileIdProvider, db, defaultUserAgent)
+                runRefresh(localizedContext, subId, activeProfileIdProvider, db, defaultUserAgent)
             } finally {
                 inFlight.remove(subId)
             }

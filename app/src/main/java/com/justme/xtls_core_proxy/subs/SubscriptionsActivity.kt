@@ -103,7 +103,7 @@ class SubscriptionsActivity : LocalizedComponentActivity() {
                             )
                         )
                     },
-                    onRefresh = { sub -> viewModel.refreshSubscription(sub.id) },
+                    onRefresh = { sub -> viewModel.refreshSubscription(this, sub.id) },
                     onDelete = { sub -> viewModel.deleteSubscription(this, sub) }
                 )
             }

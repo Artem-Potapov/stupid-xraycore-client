@@ -149,17 +149,18 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         subDao.delete(sub)
     }
 
-    fun refreshSubscription(subId: Long): Job =
+    fun refreshSubscription(context: Context, subId: Long): Job =
         SubscriptionRefreshCoordinator.refresh(
             scope = viewModelScope,
-            context = getApplication(),
+            context = context.applicationContext,
             subId = subId,
             activeProfileIdProvider = { _activeProfileId.value },
             db = db,
             defaultUserAgent = defaultUserAgent
         )
 
-    fun refreshAllStaleSubscriptions(): Job = viewModelScope.launch {
+    fun refreshAllStaleSubscriptions(context: Context): Job = viewModelScope.launch {
+        val appContext = context.applicationContext
         val now = System.currentTimeMillis()
         val candidates = subscriptions.value.filter { sub ->
             val last = sub.lastFetchedAt
@@ -170,7 +171,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         candidates.forEach { sub ->
             SubscriptionRefreshCoordinator.refresh(
                 scope = viewModelScope,
-                context = getApplication(),
+                context = appContext,
                 subId = sub.id,
                 activeProfileIdProvider = { _activeProfileId.value },
                 db = db,

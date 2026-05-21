@@ -175,7 +175,7 @@ class MainActivity : LocalizedComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        viewModel.refreshAllStaleSubscriptions()
+        viewModel.refreshAllStaleSubscriptions(this)
     }
 
     private fun requestVpnPermissionAndConnect() {
@@ -207,6 +207,7 @@ private fun MainScreen(
     onAddProfile: () -> Unit,
     onEditProfile: (Profile) -> Unit
 ) {
+    val mainContext = LocalContext.current
     val view by viewModel.groupedProfiles.collectAsState()
     val activeId by viewModel.activeProfileId.collectAsState()
     val state by viewModel.connectionState.collectAsState()
@@ -328,7 +329,7 @@ private fun MainScreen(
                                 group = group,
                                 isExpanded = isExpanded,
                                 onToggle = { expanded[group.subscription.id] = !isExpanded },
-                                onRefresh = { viewModel.refreshSubscription(group.subscription.id) }
+                                onRefresh = { viewModel.refreshSubscription(mainContext, group.subscription.id) }
                             )
                         }
                         if (isExpanded) {
