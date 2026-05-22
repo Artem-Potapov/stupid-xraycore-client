@@ -152,6 +152,7 @@
     <string name="subs_title">Subscriptions</string>
     <string name="subs_cd_back">Back</string>
     <string name="subs_cd_add">Add subscription</string>
+    <string name="subs_add_row_label">Click here to add a subscription</string>
     <string name="subs_empty">No subscriptions yet.\nTap + to add one.</string>
     <string name="subs_delete_title">Delete subscription?</string>
     <string name="subs_delete_message">This will remove the subscription and all of its profiles. Manually-added profiles are not affected.</string>
