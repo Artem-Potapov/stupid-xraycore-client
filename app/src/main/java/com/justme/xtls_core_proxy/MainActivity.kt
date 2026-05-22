@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import com.justme.xtls_core_proxy.i18n.LocalizedComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -32,13 +33,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +67,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.justme.xtls_core_proxy.R
+import com.justme.xtls_core_proxy.add.AddFabMenu
+import com.justme.xtls_core_proxy.add.ClipboardAddRouter
+import com.justme.xtls_core_proxy.add.ClipboardKind
+import com.justme.xtls_core_proxy.add.PasteAddDialog
+import com.justme.xtls_core_proxy.add.PasteKind
+import com.justme.xtls_core_proxy.add.readClipboardText
+import com.justme.xtls_core_proxy.add.subscriptionNameFromUrl
 import com.justme.xtls_core_proxy.db.Profile
 import com.justme.xtls_core_proxy.db.Subscription
 import com.justme.xtls_core_proxy.log.LogRepository
@@ -75,6 +82,7 @@ import com.justme.xtls_core_proxy.settings.ServerSettingsActivity
 import com.justme.xtls_core_proxy.settings.SettingsHubActivity
 import com.justme.xtls_core_proxy.state.SubGroup
 import com.justme.xtls_core_proxy.state.VpnViewModel
+import com.justme.xtls_core_proxy.subs.SubscriptionBodyParser
 import com.justme.xtls_core_proxy.subs.SubscriptionFormatting
 import com.justme.xtls_core_proxy.subs.SubscriptionsActivity
 import com.justme.xtls_core_proxy.ui.theme.XTLS_CORE_PROXYTheme
@@ -131,6 +139,8 @@ class MainActivity : LocalizedComponentActivity() {
         enableEdgeToEdge()
         setContent {
             XTLS_CORE_PROXYTheme {
+                var pasteKind by rememberSaveable { mutableStateOf<PasteKind?>(null) }
+
                 MainScreen(
                     viewModel = viewModel,
                     onConnect = { profileId ->
@@ -148,16 +158,10 @@ class MainActivity : LocalizedComponentActivity() {
                     onOpenSubscriptions = {
                         startActivity(Intent(this, SubscriptionsActivity::class.java))
                     },
-                    onAddProfile = {
-                        serverSettingsLauncher.launch(
-                            ServerSettingsActivity.createIntent(
-                                context = this,
-                                profileId = -1L,
-                                initialName = "",
-                                initialConfig = ""
-                            )
-                        )
-                    },
+                    onClipboardAdd = { handleClipboardAdd() },
+                    onPickPasteSubscription = { pasteKind = PasteKind.SUBSCRIPTION_URL },
+                    onPickPasteVless = { pasteKind = PasteKind.VLESS_LINK },
+                    onPickPasteJson = { pasteKind = PasteKind.JSON_CONFIG },
                     onEditProfile = { profile ->
                         serverSettingsLauncher.launch(
                             ServerSettingsActivity.createIntent(
@@ -169,6 +173,17 @@ class MainActivity : LocalizedComponentActivity() {
                         )
                     }
                 )
+
+                pasteKind?.let { kind ->
+                    PasteAddDialog(
+                        kind = kind,
+                        onDismiss = { pasteKind = null },
+                        onSubmit = { text ->
+                            handlePasteSubmit(kind, text)
+                            pasteKind = null
+                        }
+                    )
+                }
             }
         }
     }
@@ -194,6 +209,60 @@ class MainActivity : LocalizedComponentActivity() {
             this, Manifest.permission.POST_NOTIFICATIONS
         ) != PackageManager.PERMISSION_GRANTED
     }
+
+    private fun handleClipboardAdd() {
+        val text = readClipboardText(this)
+        routeAdd(ClipboardAddRouter.classify(text))
+    }
+
+    private fun handlePasteSubmit(kind: PasteKind, raw: String) {
+        val classified = ClipboardAddRouter.classify(raw)
+        val matchesKind = when (kind) {
+            PasteKind.SUBSCRIPTION_URL -> classified is ClipboardKind.Subscription
+            PasteKind.VLESS_LINK -> classified is ClipboardKind.Vless
+            PasteKind.JSON_CONFIG -> classified is ClipboardKind.Json
+        }
+        if (matchesKind) {
+            routeAdd(classified)
+        } else if (classified is ClipboardKind.UnsupportedScheme) {
+            routeAdd(classified)
+        } else {
+            toast(getString(R.string.add_toast_invalid_format))
+        }
+    }
+
+    private fun routeAdd(kind: ClipboardKind) {
+        when (kind) {
+            ClipboardKind.Empty -> toast(getString(R.string.add_toast_clipboard_empty))
+            is ClipboardKind.Subscription -> {
+                val name = subscriptionNameFromUrl(kind.url)
+                viewModel.addSubscription(
+                    name = name,
+                    url = kind.url,
+                    refreshAfterInsert = true
+                )
+                toast(getString(R.string.add_toast_subscription_added))
+            }
+            is ClipboardKind.Vless -> {
+                val name = SubscriptionBodyParser.deriveVlessDisplayName(kind.uri, 0)
+                viewModel.addProfile(name, kind.uri)
+                toast(getString(R.string.add_toast_server_added))
+            }
+            is ClipboardKind.UnsupportedScheme -> {
+                toast(getString(R.string.add_toast_unsupported_scheme, kind.scheme))
+            }
+            is ClipboardKind.Json -> {
+                val name = SubscriptionBodyParser.deriveJsonDisplayName(kind.text, 0)
+                viewModel.addProfile(name, kind.text)
+                toast(getString(R.string.add_toast_server_added))
+            }
+            ClipboardKind.Invalid -> toast(getString(R.string.add_toast_invalid_format))
+        }
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -204,7 +273,10 @@ private fun MainScreen(
     onDisconnect: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSubscriptions: () -> Unit,
-    onAddProfile: () -> Unit,
+    onClipboardAdd: () -> Unit,
+    onPickPasteSubscription: () -> Unit,
+    onPickPasteVless: () -> Unit,
+    onPickPasteJson: () -> Unit,
     onEditProfile: (Profile) -> Unit
 ) {
     val mainContext = LocalContext.current
@@ -238,12 +310,12 @@ private fun MainScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddProfile) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.main_cd_add_profile)
-                )
-            }
+            AddFabMenu(
+                onPickClipboard = onClipboardAdd,
+                onPickSubscription = onPickPasteSubscription,
+                onPickVless = onPickPasteVless,
+                onPickJson = onPickPasteJson
+            )
         }
     ) { innerPadding ->
         Column(

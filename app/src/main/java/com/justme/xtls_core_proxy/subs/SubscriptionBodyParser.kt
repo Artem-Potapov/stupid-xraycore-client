@@ -97,7 +97,7 @@ object SubscriptionBodyParser {
         }
     }
 
-    private fun deriveVlessDisplayName(uri: String, index: Int): String {
+    internal fun deriveVlessDisplayName(uri: String, index: Int): String {
         val fragmentRaw = uri.substringAfter('#', "").substringBefore('?').takeIf { it.isNotBlank() }
         val fragment = fragmentRaw?.let {
             runCatching { URLDecoder.decode(it, StandardCharsets.UTF_8.name()) }.getOrNull()
@@ -114,7 +114,7 @@ object SubscriptionBodyParser {
         }
     }
 
-    private fun deriveJsonDisplayName(rawJson: String, index: Int): String {
+    internal fun deriveJsonDisplayName(rawJson: String, index: Int): String {
         return runCatching {
             val root = JSONObject(rawJson)
             val outbounds = root.optJSONArray("outbounds")

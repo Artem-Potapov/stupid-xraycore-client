@@ -12,9 +12,9 @@
     <string name="vpn_status_paused">Приостановлено: открыто приложение %1$s</string>
     <string name="vpn_status_connected">Подключено</string>
     <string name="vpn_status_connecting">Подключение</string>
-    <string name="kill_switch_title">Приложения для отключения</string>
+    <string name="kill_switch_title">Приложения при открытии которых туннель выключается</string>
     <string name="kill_switch_enabled">Включить отключение при открытии</string>
-    <string name="kill_switch_description">Полностью отключать VPN, когда одно из выбранных приложений становится активным. Автоматически переподключаться, когда оно уходит из активного состояния.</string>
+    <string name="kill_switch_description">Полностью отключает VPN, когда одно из выбранных приложений становится активным. Автоматически переподключаться, когда оно уходит из активного состояния.</string>
     <string name="kill_switch_permission_required">Для работы функции нужен доступ к статистике использования</string>
     <string name="kill_switch_open_settings">Открыть настройки доступа к статистике</string>
     <string name="kill_switch_select_apps">Выбрать приложения</string>
@@ -69,11 +69,11 @@
     <!-- Split tunneling -->
     <string name="split_title">Раздельное туннелирование</string>
     <string name="split_mode_label">Режим</string>
-    <string name="split_mode_allow_only">Проксировать только выбранные приложения</string>
-    <string name="split_mode_block_except">Проксировать все, кроме выбранных</string>
+    <string name="split_mode_allow_only">Туннель будет проксировать только выбранные приложения</string>
+    <string name="split_mode_block_except">Туннель будет проксировать все приложения, кроме выбранных</string>
     <string name="split_selected_count">Выбрано приложений: %1$d</string>
     <string name="split_choose_apps">Выбрать приложения →</string>
-    <string name="split_picker_title">Приложения раздельного туннелирования</string>
+    <string name="split_picker_title">Раздельное туннелирование для приложений</string>
 
     <!-- Server settings -->
     <string name="server_title_edit">Изменить сервер</string>
@@ -198,4 +198,35 @@
     <string name="subs_error_network_prefix">Ошибка сети: %1$s</string>
     <string name="subs_error_fetch_failed_prefix">Не удалось получить: %1$s</string>
     <string name="subs_error_parse_lines_prefix">Не удалось разобрать %1$d строк(и)</string>
+
+    <!-- Add-FAB drop-up menu -->
+    <string name="add_menu_from_clipboard">Из буфера обмена</string>
+    <string name="add_menu_from_clipboard_with_hint">Из буфера обмена (%1$s)</string>
+    <string name="add_clipboard_hint_subscription">URL</string>
+    <string name="add_clipboard_hint_vless">Ссылка VLESS</string>
+    <string name="add_clipboard_hint_unsupported">не поддерживается</string>
+    <string name="add_clipboard_hint_json">JSON</string>
+    <string name="add_clipboard_hint_empty">пусто</string>
+    <string name="add_clipboard_hint_invalid">не распознано</string>
+    <string name="add_menu_subscription">Добавить подписку</string>
+    <string name="add_menu_vless">Добавить сервер (ссылка VLESS)</string>
+    <string name="add_menu_json">Добавить сервер (JSON)</string>
+
+    <!-- Add-FAB paste dialogs -->
+    <string name="add_dialog_subscription_title">Добавить подписку</string>
+    <string name="add_dialog_subscription_hint">Вставьте URL подписки (http:// или https://).</string>
+    <string name="add_dialog_vless_title">Добавить сервер VLESS</string>
+    <string name="add_dialog_vless_hint">Вставьте ссылку vless://.</string>
+    <string name="add_dialog_json_title">Добавить сервер (JSON)</string>
+    <string name="add_dialog_json_hint">Вставьте полную конфигурацию Xray в формате JSON.</string>
+    <string name="add_dialog_input_placeholder">Вставьте сюда</string>
+    <string name="add_dialog_button_add">Добавить</string>
+    <string name="add_dialog_button_cancel">Отмена</string>
+
+    <!-- Add-FAB toasts -->
+    <string name="add_toast_clipboard_empty">Буфер обмена пуст</string>
+    <string name="add_toast_server_added">Сервер добавлен</string>
+    <string name="add_toast_subscription_added">Подписка добавлена, загрузка…</string>
+    <string name="add_toast_unsupported_scheme">Неподдерживаемый формат VPN-ссылки: %1$s://</string>
+    <string name="add_toast_invalid_format">Неверный формат</string>
 </resources>
