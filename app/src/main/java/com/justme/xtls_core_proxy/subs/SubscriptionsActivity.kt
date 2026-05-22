@@ -10,6 +10,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -45,6 +47,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -293,6 +299,49 @@ private fun SubscriptionRow(
                     contentDescription = stringResource(R.string.main_cd_refresh_subscription)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun AddSubscriptionRow(onClick: () -> Unit) {
+    val borderColor = MaterialTheme.colorScheme.onSurfaceVariant
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .drawBehind {
+                val strokeWidthPx = 1.dp.toPx()
+                val dashPx = 8.dp.toPx()
+                val gapPx = 6.dp.toPx()
+                val cornerPx = 12.dp.toPx()
+                drawRoundRect(
+                    color = borderColor,
+                    cornerRadius = CornerRadius(cornerPx, cornerPx),
+                    style = Stroke(
+                        width = strokeWidthPx,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(dashPx, gapPx))
+                    )
+                )
+            },
+        tonalElevation = 0.dp,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = stringResource(R.string.subs_cd_add),
+                tint = borderColor
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = stringResource(R.string.subs_add_row_label),
+                style = MaterialTheme.typography.bodyLarge,
+                color = borderColor
+            )
         }
     }
 }
