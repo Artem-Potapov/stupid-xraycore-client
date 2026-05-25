@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.justme.xtls_core_proxy.BuildConfig
@@ -37,7 +36,6 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.get(application)
     private val dao = db.profileDao()
     private val subDao = db.subscriptionDao()
-    private val prefs = application.getSharedPreferences("vpn_prefs", Context.MODE_PRIVATE)
 
     val profiles: StateFlow<List<Profile>> = dao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -55,7 +53,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfilesView.EMPTY)
 
     private val _activeProfileId = MutableStateFlow(
-        prefs.getLong(KEY_ACTIVE_PROFILE_ID, -1L).takeIf { it != -1L }
+        ActiveProfileRepository.getActiveProfileId(application)
     )
     val activeProfileId: StateFlow<Long?> = _activeProfileId.asStateFlow()
 
@@ -209,13 +207,6 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun setActiveProfileId(id: Long?) {
         _activeProfileId.value = id
-        prefs.edit {
-            if (id != null) putLong(KEY_ACTIVE_PROFILE_ID, id)
-            else remove(KEY_ACTIVE_PROFILE_ID)
-        }
-    }
-
-    companion object {
-        private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
+        ActiveProfileRepository.setActiveProfileId(getApplication(), id)
     }
 }
