@@ -88,6 +88,12 @@ import com.justme.xtls_core_proxy.subs.SubscriptionsActivity
 import com.justme.xtls_core_proxy.ui.theme.XTLS_CORE_PROXYTheme
 
 class MainActivity : LocalizedComponentActivity() {
+
+    companion object {
+        const val EXTRA_TILE_AUTOCONNECT = "extra_tile_autoconnect"
+        const val EXTRA_TILE_PROFILE_ID = "extra_tile_profile_id"
+    }
+
     private val viewModel: VpnViewModel by viewModels()
     private var pendingProfileId: Long = -1L
 
