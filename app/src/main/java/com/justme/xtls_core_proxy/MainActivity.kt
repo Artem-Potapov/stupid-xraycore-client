@@ -192,11 +192,18 @@ class MainActivity : LocalizedComponentActivity() {
                 }
             }
         }
+        if (savedInstanceState == null) maybeAutoConnectFromTile(intent)
     }
 
     override fun onStart() {
         super.onStart()
         viewModel.refreshAllStaleSubscriptions(this)
+    }
+
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        maybeAutoConnectFromTile(newIntent)
     }
 
     private fun requestVpnPermissionAndConnect() {
@@ -206,6 +213,23 @@ class MainActivity : LocalizedComponentActivity() {
         } else {
             viewModel.connect(this, pendingProfileId)
             pendingProfileId = -1L
+        }
+    }
+
+    private fun maybeAutoConnectFromTile(triggerIntent: Intent?) {
+        val autoConnect = triggerIntent?.getBooleanExtra(EXTRA_TILE_AUTOCONNECT, false) == true
+        if (!autoConnect) return
+        val profileId = triggerIntent.getLongExtra(EXTRA_TILE_PROFILE_ID, -1L)
+        // Single-shot: strip the extras so rotation / recreate doesn't re-trigger.
+        triggerIntent.removeExtra(EXTRA_TILE_AUTOCONNECT)
+        triggerIntent.removeExtra(EXTRA_TILE_PROFILE_ID)
+        if (profileId == -1L) return  // malformed external launch; ignore
+
+        pendingProfileId = profileId
+        if (needsNotificationPermission()) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            requestVpnPermissionAndConnect()
         }
     }
 
