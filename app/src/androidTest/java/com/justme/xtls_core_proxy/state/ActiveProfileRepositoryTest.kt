@@ -3,6 +3,7 @@ package com.justme.xtls_core_proxy.state
 import android.content.Context
 import androidx.core.content.edit
 import androidx.test.core.app.ApplicationProvider
+import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.justme.xtls_core_proxy.db.AppDatabase
 import com.justme.xtls_core_proxy.db.Profile
@@ -19,21 +20,25 @@ import org.junit.runner.RunWith
 class ActiveProfileRepositoryTest {
 
     private lateinit var context: Context
+    private lateinit var testDb: AppDatabase
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        clearState()
+        testDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
+        AppDatabase.setInstanceForTests(testDb)
+        clearPrefs()
     }
 
     @After
     fun tearDown() {
-        clearState()
+        clearPrefs()
+        AppDatabase.setInstanceForTests(null)
+        testDb.close()
     }
 
-    private fun clearState() {
+    private fun clearPrefs() {
         context.getSharedPreferences("vpn_prefs", Context.MODE_PRIVATE).edit { clear() }
-        AppDatabase.get(context).clearAllTables()
     }
 
     @Test
