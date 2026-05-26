@@ -10,6 +10,7 @@ import com.justme.xtls_core_proxy.config.ConfigBuilder
 import com.justme.xtls_core_proxy.db.AppDatabase
 import com.justme.xtls_core_proxy.db.Profile
 import com.justme.xtls_core_proxy.db.Subscription
+import com.justme.xtls_core_proxy.i18n.SupportedLanguage
 import com.justme.xtls_core_proxy.log.LogRepository
 import com.justme.xtls_core_proxy.log.VpnConnectionState
 import com.justme.xtls_core_proxy.subs.SubscriptionRefreshCoordinator
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -51,22 +53,13 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfilesView.EMPTY)
 
-    // TODO(qs-tile-followup): observe ActiveProfileRepository as a Flow so
-    //  tile-initiated starts/stops keep this in sync with persistence. Today
-    //  this StateFlow is seeded once at VM construction and only mutated by
-    //  this VM's own connect/disconnect/deleteProfile paths — the QS tile
-    //  bypasses the VM and talks to XrayVpnService directly, so the UI can
-    //  display a stale active-profile dot until the next process restart.
-    private val _activeProfileId = MutableStateFlow(
-        ActiveProfileRepository.getActiveProfileId(application)
-    )
-    val activeProfileId: StateFlow<Long?> = _activeProfileId.asStateFlow()
+    val activeProfileId: StateFlow<Long?> = ActiveProfileRepository.activeProfileIdFlow
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            ActiveProfileRepository.getActiveProfileId(application)
+        )
 
-    // TODO(qs-tile-followup): tile-initiated VPN failures are surfaced via
-    //  XrayVpnService's error notification channel but never reach this
-    //  StateFlow. Once the active-profile Flow lands, give the service a
-    //  matching error surface (e.g. a SharedFlow on LogRepository) that this
-    //  VM can mirror so the in-app UI shows tile-triggered errors too.
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
@@ -74,6 +67,27 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState = LogRepository.connectionState
 
     private val defaultUserAgent = "XTLSCoreProxy/${BuildConfig.VERSION_NAME}"
+
+    init {
+        // Mirror LogRepository.errorEvents into the VM's StateFlow, resolved
+        // against an Application context so the message picks up the per-app
+        // locale at observation time. Cancels with viewModelScope on
+        // onCleared() — no manual cleanup needed.
+        viewModelScope.launch {
+            LogRepository.errorEvents.collect { resId ->
+                _error.value = SupportedLanguage.localize(getApplication())
+                    .getString(resId)
+            }
+        }
+        // Clear the latest error on every transition to CONNECTING. This is
+        // the "user (or tile) tried to start again" signal. Mirrors the
+        // semantics of the deleted `_error.value = null` in connect().
+        viewModelScope.launch {
+            LogRepository.connectionState
+                .filter { it == VpnConnectionState.CONNECTING }
+                .collect { _error.value = null }
+        }
+    }
 
     fun clearError() {
         _error.value = null
@@ -96,8 +110,8 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteProfile(profile: Profile) {
         viewModelScope.launch {
             dao.delete(profile)
-            if (_activeProfileId.value == profile.id) {
-                setActiveProfileId(null)
+            if (ActiveProfileRepository.getActiveProfileId(getApplication()) == profile.id) {
+                ActiveProfileRepository.setActiveProfileId(getApplication(), null)
             }
         }
     }
@@ -124,7 +138,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
                 scope = viewModelScope,
                 context = getApplication(),
                 subId = newId,
-                activeProfileIdProvider = { _activeProfileId.value },
+                activeProfileIdProvider = { ActiveProfileRepository.getActiveProfileId(getApplication()) },
                 db = db,
                 defaultUserAgent = defaultUserAgent
             )
@@ -139,7 +153,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
                     scope = viewModelScope,
                     context = getApplication(),
                     subId = sub.id,
-                    activeProfileIdProvider = { _activeProfileId.value },
+                    activeProfileIdProvider = { ActiveProfileRepository.getActiveProfileId(getApplication()) },
                     db = db,
                     defaultUserAgent = defaultUserAgent
                 )
@@ -147,7 +161,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         }
 
     fun deleteSubscription(context: Context, sub: Subscription): Job = viewModelScope.launch {
-        val activeId = _activeProfileId.value
+        val activeId = ActiveProfileRepository.getActiveProfileId(getApplication())
         if (activeId != null) {
             val activeProfile = dao.getById(activeId)
             if (activeProfile?.subscriptionId == sub.id) {
@@ -162,7 +176,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             context = context.applicationContext,
             subId = subId,
-            activeProfileIdProvider = { _activeProfileId.value },
+            activeProfileIdProvider = { ActiveProfileRepository.getActiveProfileId(getApplication()) },
             db = db,
             defaultUserAgent = defaultUserAgent
         )
@@ -181,7 +195,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
                 scope = viewModelScope,
                 context = appContext,
                 subId = sub.id,
-                activeProfileIdProvider = { _activeProfileId.value },
+                activeProfileIdProvider = { ActiveProfileRepository.getActiveProfileId(getApplication()) },
                 db = db,
                 defaultUserAgent = defaultUserAgent
             )
@@ -189,8 +203,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connect(context: Context, profileId: Long): Boolean {
-        setActiveProfileId(profileId)
-        _error.value = null
+        ActiveProfileRepository.setActiveProfileId(context, profileId)
 
         val appContext = context.applicationContext
         val startIntent = Intent(appContext, XrayVpnService::class.java).apply {
@@ -213,11 +226,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         // API 31+ background-start restrictions if the activity loses
         // foreground state between gating and dispatch.
         appContext.startForegroundService(stopIntent)
-        setActiveProfileId(null)
+        ActiveProfileRepository.setActiveProfileId(context, null)
     }
 
-    private fun setActiveProfileId(id: Long?) {
-        _activeProfileId.value = id
-        ActiveProfileRepository.setActiveProfileId(getApplication(), id)
-    }
 }
