@@ -62,7 +62,7 @@ class XrayVpnTileService : TileService() {
             state == VpnConnectionState.PAUSED
         ) {
             // Stop path needs no IO; only the dispatch waits for unlock.
-            runOrDeferUnlock { sendStopIntent() }
+            runOrDeferUnlock { executeDecision(TileClickDecision.Stop) }
             return
         }
 
@@ -75,27 +75,37 @@ class XrayVpnTileService : TileService() {
         clickJob = serviceScope.launch(Dispatchers.IO) {
             val appCtx = applicationContext
             val profileId = ActiveProfileRepository.pickOrPersistActive(appCtx)
-            if (profileId == null) {
-                withContext(Dispatchers.Main) {
-                    val toastText = SupportedLanguage.localize(appCtx)
-                        .getString(R.string.tile_toast_no_profiles)
-                    Toast.makeText(appCtx, toastText, Toast.LENGTH_LONG).show()
-                }
-                return@launch
-            }
 
             withContext(Dispatchers.Main) {
                 runOrDeferUnlock {
-                    val needsVpn = VpnService.prepare(this@XrayVpnTileService) != null
+                    // Short-circuits via decideTileClick when profileId is
+                    // null, so VpnService.prepare runs only when needed.
+                    val needsVpn = profileId != null &&
+                        VpnService.prepare(this@XrayVpnTileService) != null
                     val needsNotif = needsNotificationPermission()
-                    if (needsVpn || needsNotif) {
-                        launchActivityForAutoConnect(profileId)
-                    } else {
-                        sendStartIntent(profileId)
-                    }
+                    executeDecision(
+                        decideTileClick(state, profileId, needsVpn, needsNotif)
+                    )
                 }
             }
         }
+    }
+
+    private fun executeDecision(decision: TileClickDecision) {
+        when (decision) {
+            TileClickDecision.Stop -> sendStopIntent()
+            TileClickDecision.NoProfileToast -> showNoProfileToast()
+            is TileClickDecision.Start -> sendStartIntent(decision.profileId)
+            is TileClickDecision.HandoffToMainActivity ->
+                launchActivityForAutoConnect(decision.profileId)
+        }
+    }
+
+    private fun showNoProfileToast() {
+        val appCtx = applicationContext
+        val toastText = SupportedLanguage.localize(appCtx)
+            .getString(R.string.tile_toast_no_profiles)
+        Toast.makeText(appCtx, toastText, Toast.LENGTH_LONG).show()
     }
 
     private fun runOrDeferUnlock(block: () -> Unit) {
