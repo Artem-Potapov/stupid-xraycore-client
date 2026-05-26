@@ -9,6 +9,7 @@
     <string name="vpn_error_channel_description">Notifications for unexpected VPN failures</string>
     <string name="vpn_revive_error">VPN service stopped due to an unknown error</string>
     <string name="vpn_permission_revoked_error">VPN permission was revoked. Open the app to reconnect.</string>
+    <string name="vpn_start_failed_error">VPN failed to start. See logs for details.</string>
     <string name="vpn_status_paused">Paused: %1$s is open</string>
     <string name="vpn_status_connected">Connected</string>
     <string name="vpn_status_connecting">Connecting</string>

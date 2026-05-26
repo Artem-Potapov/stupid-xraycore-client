@@ -11,6 +11,7 @@
     <string name="vpn_error_channel_description">Уведомления о непредвиденных сбоях VPN</string>
     <string name="vpn_revive_error">VPN остановлен из-за неизвестной ошибки</string>
     <string name="vpn_permission_revoked_error">Разрешение VPN отозвано. Откройте приложение для повторного подключения.</string>
+    <string name="vpn_start_failed_error">Не удалось запустить VPN. Подробности в журнале.</string>
     <string name="vpn_status_paused">Приостановлено: открыто приложение %1$s</string>
     <string name="vpn_status_connected">Подключено</string>
     <string name="vpn_status_connecting">Подключение</string>

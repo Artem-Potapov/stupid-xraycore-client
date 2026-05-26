@@ -81,6 +81,7 @@ class XrayVpnService : VpnService() {
                 val profileId = intent.getLongExtra(EXTRA_PROFILE_ID, -1L)
                 if (profileId == -1L) {
                     LogRepository.setConnectionState(VpnConnectionState.ERROR)
+                    LogRepository.emitError(R.string.vpn_start_failed_error)
                     LogRepository.append("Refused to start: no profile ID provided")
                     stopSelf()
                 } else {
@@ -95,6 +96,7 @@ class XrayVpnService : VpnService() {
 
     override fun onRevoke() {
         LogRepository.append("VPN permission revoked by system")
+        LogRepository.emitError(R.string.vpn_permission_revoked_error)
         stopVpn()
         super.onRevoke()
     }
@@ -127,6 +129,7 @@ class XrayVpnService : VpnService() {
         // we stop ourselves.
         if (VpnService.prepare(this) != null) {
             LogRepository.setConnectionState(VpnConnectionState.ERROR)
+            LogRepository.emitError(R.string.vpn_permission_revoked_error)
             LogRepository.append("Refused to start: VPN permission not granted")
             postPermissionRevokedNotification()
             stopVpn()
@@ -143,6 +146,7 @@ class XrayVpnService : VpnService() {
                 }
                 if (profile == null) {
                     LogRepository.setConnectionState(VpnConnectionState.ERROR)
+                    LogRepository.emitError(R.string.vpn_start_failed_error)
                     LogRepository.append("Profile not found (id=$profileId)")
                     stopVpn()
                     return@Thread
@@ -165,11 +169,13 @@ class XrayVpnService : VpnService() {
                     }
                     .onFailure { error ->
                         LogRepository.setConnectionState(VpnConnectionState.ERROR)
+                        LogRepository.emitError(R.string.vpn_start_failed_error)
                         LogRepository.append("Xray start failed: ${error.message}")
                         stopVpn()
                     }
             } catch (error: Throwable) {
                 LogRepository.setConnectionState(VpnConnectionState.ERROR)
+                LogRepository.emitError(R.string.vpn_start_failed_error)
                 LogRepository.append("VPN start failed: ${error.message}")
                 stopVpn()
             }
@@ -278,6 +284,7 @@ class XrayVpnService : VpnService() {
             val profile = AppDatabase.get(this@XrayVpnService).profileDao().getById(profileId)
             if (profile == null) {
                 LogRepository.append("reviveTunnel: profile $profileId not found")
+                LogRepository.emitError(R.string.vpn_revive_error)
                 postReviveErrorNotification()
                 stopVpn()
                 return@launch
@@ -289,6 +296,7 @@ class XrayVpnService : VpnService() {
                 }
                 .onFailure { error ->
                     LogRepository.append("reviveTunnel failed: ${error.message}")
+                    LogRepository.emitError(R.string.vpn_revive_error)
                     postReviveErrorNotification()
                     stopVpn()
                 }
