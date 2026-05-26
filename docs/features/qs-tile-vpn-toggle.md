@@ -41,6 +41,8 @@ A tile that worked only on already-permitted users would be useless on first lau
 
 The tile **observes** state but does not own it. `LogRepository.connectionState` is the canonical source, written by `XrayVpnService`; the tile collects it on `onStartListening` and re-renders. Tap intent is decided from `connectionState.value` at click time, not from any tile-private state.
 
+**Tile text.** `updateTile` writes the localized connection state ("Disconnected" / "Connecting" / "Connected" / "Paused" / "Error") into the tile's `label` and leaves `subtitle` null. The manifest `android:label="@string/tile_label"` ("VPN") is used only by the QS *tile picker* (the system UI for adding/removing tiles); the panel never shows it once the tile is on screen. The stacked "VPN" + state rendering an earlier version produced was redundant — a user with the app installed already knows what the tile is for.
+
 ## Components
 
 The tile lives in [`app/src/main/java/com/justme/xtls_core_proxy/tile/`](../../app/src/main/java/com/justme/xtls_core_proxy/tile/). The persistence layer it shares with `VpnViewModel` lives in [`state/`](../../app/src/main/java/com/justme/xtls_core_proxy/state/).

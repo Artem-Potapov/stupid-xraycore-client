@@ -164,25 +164,30 @@ class XrayVpnTileService : TileService() {
         when (state) {
             VpnConnectionState.DISCONNECTED -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = ctx.getString(R.string.main_state_disconnected)
+                tile.label = ctx.getString(R.string.main_state_disconnected)
             }
             VpnConnectionState.CONNECTING -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.subtitle = ctx.getString(R.string.main_state_connecting)
+                tile.label = ctx.getString(R.string.main_state_connecting)
             }
             VpnConnectionState.CONNECTED -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.subtitle = ctx.getString(R.string.main_state_connected)
+                tile.label = ctx.getString(R.string.main_state_connected)
             }
             VpnConnectionState.PAUSED -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.subtitle = ctx.getString(R.string.main_state_paused)
+                tile.label = ctx.getString(R.string.main_state_paused)
             }
             VpnConnectionState.ERROR -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = ctx.getString(R.string.main_state_error)
+                tile.label = ctx.getString(R.string.main_state_error)
             }
         }
+        // Explicit null clears any subtitle from older builds that wrote state
+        // text into the subtitle field — without this the system-cached
+        // subtitle can survive an app upgrade and render alongside the new
+        // label.
+        tile.subtitle = null
         tile.updateTile()
     }
 }
