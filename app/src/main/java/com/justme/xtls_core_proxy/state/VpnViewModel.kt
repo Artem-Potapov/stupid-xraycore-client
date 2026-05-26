@@ -3,7 +3,6 @@ package com.justme.xtls_core_proxy.state
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.justme.xtls_core_proxy.BuildConfig
@@ -52,11 +51,22 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProfilesView.EMPTY)
 
+    // TODO(qs-tile-followup): observe ActiveProfileRepository as a Flow so
+    //  tile-initiated starts/stops keep this in sync with persistence. Today
+    //  this StateFlow is seeded once at VM construction and only mutated by
+    //  this VM's own connect/disconnect/deleteProfile paths — the QS tile
+    //  bypasses the VM and talks to XrayVpnService directly, so the UI can
+    //  display a stale active-profile dot until the next process restart.
     private val _activeProfileId = MutableStateFlow(
         ActiveProfileRepository.getActiveProfileId(application)
     )
     val activeProfileId: StateFlow<Long?> = _activeProfileId.asStateFlow()
 
+    // TODO(qs-tile-followup): tile-initiated VPN failures are surfaced via
+    //  XrayVpnService's error notification channel but never reach this
+    //  StateFlow. Once the active-profile Flow lands, give the service a
+    //  matching error surface (e.g. a SharedFlow on LogRepository) that this
+    //  VM can mirror so the in-app UI shows tile-triggered errors too.
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
@@ -188,11 +198,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
             putExtra(XrayVpnService.EXTRA_PROFILE_ID, profileId)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            appContext.startForegroundService(startIntent)
-        } else {
-            appContext.startService(startIntent)
-        }
+        appContext.startForegroundService(startIntent)
         return true
     }
 
@@ -201,7 +207,12 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         val stopIntent = Intent(appContext, XrayVpnService::class.java).apply {
             action = XrayVpnService.ACTION_STOP
         }
-        appContext.startService(stopIntent)
+        // XrayVpnService is a foreground service and disconnect is only
+        // invoked from UI gated on CONNECTED/CONNECTING/PAUSED, so the
+        // service exists; startForegroundService keeps us safe against
+        // API 31+ background-start restrictions if the activity loses
+        // foreground state between gating and dispatch.
+        appContext.startForegroundService(stopIntent)
         setActiveProfileId(null)
     }
 

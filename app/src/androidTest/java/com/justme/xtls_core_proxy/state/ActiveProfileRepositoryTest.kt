@@ -16,6 +16,14 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Note: this suite mutates two pieces of shared global state — the `vpn_prefs`
+ * SharedPreferences file and `AppDatabase.INSTANCE` (via `setInstanceForTests`).
+ * Both are reset in @Before/@After, but the tests assume sequential execution
+ * (JUnit4's default). Do not enable parallel test classes without first giving
+ * each test class its own prefs name and serializing access to the AppDatabase
+ * singleton.
+ */
 @RunWith(AndroidJUnit4::class)
 class ActiveProfileRepositoryTest {
 

@@ -30,7 +30,11 @@ abstract class AppDatabase : RoomDatabase() {
                     .also { INSTANCE = it }
             }
 
-        @VisibleForTesting
+        // Test-only setter; `internal` keeps it out of any future external
+        // consumer of :app, and `@VisibleForTesting(otherwise = NONE)` makes
+        // lint flag any non-test caller (vs. the default which only flags
+        // calls in code that could otherwise have been `private`).
+        @VisibleForTesting(otherwise = VisibleForTesting.NONE)
         internal fun setInstanceForTests(db: AppDatabase?) {
             synchronized(this) {
                 INSTANCE = db

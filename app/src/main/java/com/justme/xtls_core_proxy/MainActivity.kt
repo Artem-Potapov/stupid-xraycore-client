@@ -216,9 +216,8 @@ class MainActivity : LocalizedComponentActivity() {
         }
     }
 
-    private fun maybeAutoConnectFromTile(triggerIntent: Intent?) {
-        val autoConnect = triggerIntent?.getBooleanExtra(EXTRA_TILE_AUTOCONNECT, false) == true
-        if (!autoConnect) return
+    private fun maybeAutoConnectFromTile(triggerIntent: Intent) {
+        if (!triggerIntent.getBooleanExtra(EXTRA_TILE_AUTOCONNECT, false)) return
         val profileId = triggerIntent.getLongExtra(EXTRA_TILE_PROFILE_ID, -1L)
         // Single-shot: strip the extras so rotation / recreate doesn't re-trigger.
         triggerIntent.removeExtra(EXTRA_TILE_AUTOCONNECT)
