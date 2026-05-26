@@ -267,6 +267,7 @@ class XrayVpnService : VpnService() {
             } catch (error: Throwable) {
                 LogRepository.append("killTunnel failed: ${error.message}")
                 LogRepository.setConnectionState(VpnConnectionState.ERROR)
+                LogRepository.emitError(R.string.vpn_revive_error)
                 stopVpn()
             }
         }
