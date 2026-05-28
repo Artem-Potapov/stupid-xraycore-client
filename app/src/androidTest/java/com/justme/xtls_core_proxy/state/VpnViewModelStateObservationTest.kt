@@ -77,7 +77,7 @@ class VpnViewModelStateObservationTest {
     }
 
     @Test
-    fun error_setOnEmitError_clearedOnConnectingTransition() = runBlocking {
+    fun error_setOnEmitError_clearedOnConnectingTransition(): Unit = runBlocking {
         LogRepository.emitError(R.string.vpn_start_failed_error)
         val expected = SupportedLanguage.localize(application)
             .getString(R.string.vpn_start_failed_error)
@@ -95,7 +95,7 @@ class VpnViewModelStateObservationTest {
     }
 
     @Test
-    fun error_isLocalizedAgainstAppLocale() = runBlocking {
+    fun error_isLocalizedAgainstAppLocale(): Unit = runBlocking {
         LogRepository.emitError(R.string.vpn_permission_revoked_error)
         val expected = SupportedLanguage.localize(application)
             .getString(R.string.vpn_permission_revoked_error)
