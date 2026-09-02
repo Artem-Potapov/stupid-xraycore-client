@@ -5,7 +5,9 @@ import com.justme.xtls_core_proxy.db.ProfileDao
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -100,5 +102,45 @@ class FailoverPoolResolverDispatchTest {
         FailoverPoolResolver.resolve(dao, current)
 
         assertEquals(0, dao.bySubscriptionIdCallCount)
+    }
+
+    @Test
+    fun samePool_manualProfilesAreEquivalent() {
+        assertTrue(
+            FailoverPoolResolver.samePool(
+                profile(50L, subscriptionId = null),
+                profile(51L, subscriptionId = null),
+            )
+        )
+    }
+
+    @Test
+    fun samePool_profilesFromTheSameSubscriptionAreEquivalent() {
+        assertTrue(
+            FailoverPoolResolver.samePool(
+                profile(60L, subscriptionId = 7L),
+                profile(61L, subscriptionId = 7L),
+            )
+        )
+    }
+
+    @Test
+    fun samePool_manualAndSubscriptionProfilesAreNotEquivalent() {
+        assertFalse(
+            FailoverPoolResolver.samePool(
+                profile(70L, subscriptionId = null),
+                profile(71L, subscriptionId = 7L),
+            )
+        )
+    }
+
+    @Test
+    fun samePool_profilesFromDifferentSubscriptionsAreNotEquivalent() {
+        assertFalse(
+            FailoverPoolResolver.samePool(
+                profile(80L, subscriptionId = 7L),
+                profile(81L, subscriptionId = 8L),
+            )
+        )
     }
 }

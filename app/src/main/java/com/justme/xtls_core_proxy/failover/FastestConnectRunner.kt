@@ -92,6 +92,8 @@ internal class FastestConnectRunner(
     // [CoroutineScope] for testability (see `FastestConnectRunnerTest`, which drives it from a
     // single-threaded `TestScope`), but production callers must preserve main-thread confinement.
     private var runningJob: Job? = null
+    private var runningProfile: Profile? = null
+    private var runningIds: Set<Long> = emptySet()
 
     // Guards the finally-block "am I still the active run" check below rather than comparing
     // against `runningJob` itself: with a `Dispatchers.Main.immediate`-backed scope (production:
@@ -116,24 +118,44 @@ internal class FastestConnectRunner(
 
     /**
      * Starts probing [profile]'s pool, replacing (cancelling) any run already in flight rather than
-     * stacking a second one. Any winner from a superseded/earlier run that was never consumed is
-     * discarded — a new run must never let a stale winner fire later.
+     * stacking a second one. A second request for the same [FailoverPoolResolver] partition instead
+     * coalesces onto the existing run: cancelling its waiters would leave its uninterruptible native
+     * probes holding [PingCoordinator]'s slots, so immediately re-probing the same ids can turn the
+     * whole pool into prompt [PingState.Unavailable] results. Any winner from a genuinely
+     * superseded/earlier run that was never consumed is discarded — a new run must never let a stale
+     * winner fire later.
      */
     fun start(profile: Profile) {
+        if (
+            _active.value &&
+                runningProfile?.let { FailoverPoolResolver.samePool(it, profile) } == true
+        ) {
+            return
+        }
+
+        // Clear the run being replaced before advancing [generation]. Its cancelled finally must
+        // not clear a state the new run may already have marked Testing.
+        pingStates.update { clearStaleTesting(it, runningIds) }
+        runningIds = emptySet()
         val myGeneration = ++generation
         runningJob?.cancel()
         _winnerId.value = null
+        runningProfile = profile
         val job = scope.launch {
             _active.value = true
             var ids: Set<Long> = emptySet()
             try {
                 val pool = resolvePool(profile)
                 ids = pool.mapTo(HashSet()) { it.id }
+                if (generation != myGeneration) return@launch
+                runningIds = ids
                 if (pool.isEmpty()) {
                     // Reachable when the backing subscription is deleted mid-run. Every other
                     // no-winner exit reports; this one must too, or the progress row simply
                     // vanishes with no explanation.
-                    onOutcome(FastestConnectOutcome.NO_RESPONSE)
+                    if (generation == myGeneration) {
+                        onOutcome(FastestConnectOutcome.NO_RESPONSE)
+                    }
                     return@launch
                 }
                 // Best-effort snapshot, read before runGroup's own cross-run de-dup would apply —
@@ -144,9 +166,14 @@ internal class FastestConnectRunner(
                 pingCoordinator.runGroup(
                     ids = byId.keys.toList(),
                     concurrency = prefs.concurrency,
-                    onUpdate = { id, state -> pingStates.update { it + (id to state) } },
+                    onUpdate = { id, state ->
+                        if (generation == myGeneration) {
+                            pingStates.update { it + (id to state) }
+                        }
+                    },
                     probe = { id -> probe(byId.getValue(id), prefs) },
                 )
+                if (generation != myGeneration) return@launch
                 val winner = pickFastest(pingStates.value, pool)
                 if (winner == null) {
                     onOutcome(if (alreadyInFlight) FastestConnectOutcome.BUSY else FastestConnectOutcome.NO_RESPONSE)
@@ -156,18 +183,22 @@ internal class FastestConnectRunner(
                     onOutcome(FastestConnectOutcome.STATE_CHANGED)
                     return@launch
                 }
-                _winnerId.value = winner.id
+                if (generation == myGeneration) {
+                    _winnerId.value = winner.id
+                }
             } finally {
                 // PingCoordinator.runGroup rethrows a caller-cancellation CancellationException from
                 // inside its per-id `finally`, ahead of onUpdate, so an id still in flight when this
                 // Job is cancelled never gets a terminal PingState of its own — without this reset it
                 // would spin on Testing forever. Run for both cancellation and normal completion (a
                 // no-op on the happy path, since runGroup already resolved every id by then).
-                pingStates.update { clearStaleTesting(it, ids) }
                 // Only the most recently started run may report itself finished: a superseded run
                 // reaching this finally (its own cancellation unwinding after a newer run started)
-                // must not stomp the newer run's still-in-flight `true`.
+                // must not stomp the newer run's state, outcome, winner, or still-in-flight `true`.
                 if (generation == myGeneration) {
+                    pingStates.update { clearStaleTesting(it, ids) }
+                    runningIds = emptySet()
+                    runningProfile = null
                     _active.value = false
                 }
             }
@@ -177,6 +208,9 @@ internal class FastestConnectRunner(
 
     /** Stops an in-flight run. See [start]'s doc for cancellation semantics. */
     fun cancel() {
+        // An explicit Cancel is not a same-pool coalesce request: a following tap must begin a
+        // fresh run even while this job's cancellation cleanup is waiting to run.
+        runningProfile = null
         runningJob?.cancel()
     }
 }

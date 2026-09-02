@@ -163,16 +163,20 @@ consequences a maintainer needs to know:
 
 - **It introduces cancellation, which this feature previously had none of.** Group and single tests
   are fire-and-forget (tapping again is a no-op, no cancel in v1). A connect-fastest run can last
-  `timeout × ceil(n / concurrency)` — minutes at the preference bounds — so it has a visible Cancel,
-  and starting a second run supersedes (cancels) the first. `runGroup` rethrows a caller-cancellation
-  `CancellationException` from inside its per-id `finally` **before** calling `onUpdate` for that id,
-  so a cancelled in-flight id never receives a terminal `PingState` of its own and its row would spin
-  on `Testing` forever. `failover/FastestPick.clearStaleTesting(states, ids)` (pure, unit-tested)
-  resets exactly *that run's* ids from `Testing` back to `Idle` in the runner's `finally`. It is
-  scoped to this run's resolved pool, so it never touches a row outside it — but note the limit of
-  that guarantee: the pool includes ids `runGroup` deduped and never admitted, so an overlapping
-  concurrent group ping can briefly have one of its own `Testing` rows reset to `Idle` here.
-  Self-healing — that run writes its own terminal state when it finishes.
+  `timeout × ceil(n / concurrency)` — minutes at the preference bounds — so it has a visible Cancel.
+  An explicit Cancel, or a new request for a **different** `FailoverPoolResolver` partition,
+  supersedes (cancels) the active run. A request for the **same** partition coalesces onto it
+  instead: cancelling its waiters while its uninterruptible native probes still own slots would make
+  the immediately-restarted equivalent pool report prompt `N/A`. The existing run produces the one
+  eventual winner. `runGroup` rethrows a caller-cancellation `CancellationException` from inside its
+  per-id `finally` **before** calling `onUpdate` for that id, so a cancelled in-flight id never
+  receives a terminal `PingState` of its own and its row would spin on `Testing` forever.
+  `failover/FastestPick.clearStaleTesting(states, ids)` (pure, unit-tested) resets exactly *that
+  run's* ids from `Testing` back to `Idle` in the runner's cleanup. It is scoped to this run's
+  resolved pool, so it never touches a row outside it — but note the limit of that guarantee: the
+  pool includes ids `runGroup` deduped and never admitted, so an overlapping concurrent group ping
+  can briefly have one of its own `Testing` rows reset to `Idle` here. Self-healing — that run writes
+  its own terminal state when it finishes.
 - **`inFlight` and the native-slot accounting are deliberately left alone on cancel.** The orphaned
   probe's own `finally` releases the native slot when the JNI call actually returns; `inFlight` is
   released by `runGroup`'s uncontended `Mutex` fast path, which completes even on a cancelled

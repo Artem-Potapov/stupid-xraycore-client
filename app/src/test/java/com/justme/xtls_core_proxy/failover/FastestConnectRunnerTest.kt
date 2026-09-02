@@ -5,11 +5,13 @@ import com.justme.xtls_core_proxy.state.PingCoordinator
 import com.justme.xtls_core_proxy.state.PingPreferences
 import com.justme.xtls_core_proxy.state.PingState
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -29,7 +31,8 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class FastestConnectRunnerTest {
 
-    private fun profile(id: Long) = Profile(id = id, name = "s$id", config = "{}")
+    private fun profile(id: Long, subscriptionId: Long? = null) =
+        Profile(id = id, name = "s$id", config = "{}", subscriptionId = subscriptionId)
 
     @Test
     fun start_supersedingARun_cancelsTheOldOne_withoutClearingTheNewRunsActiveFlag() = runTest {
@@ -54,14 +57,14 @@ class FastestConnectRunnerTest {
             onOutcome = { outcomes += it },
         )
 
-        runner.start(profile(1))
+        runner.start(profile(1, subscriptionId = 1L))
         runCurrent()
         assertTrue("run A must be active immediately after starting", runner.active.value)
 
         // Supersede A with B before A's probe ever returns. A's cancellation-driven finally will
         // run at some point after this — the defect this test pins is that finally incorrectly
         // clearing `active` for the NEW run.
-        runner.start(profile(2))
+        runner.start(profile(2, subscriptionId = 2L))
         runCurrent()
         assertTrue(
             "a superseded run's finally must not clear the new run's still-in-flight active flag",
@@ -136,6 +139,63 @@ class FastestConnectRunnerTest {
         assertFalse(runner.active.value)
         assertEquals(PingState.Success(1L), pingStates.value[1L])
         assertEquals(PingState.Success(2L), pingStates.value[2L])
+    }
+
+    @Test
+    fun start_sameSubscriptionSupersede_keepsTheExistingNativeProbesInsteadOfPaintingThePoolUnavailable() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val runnerScope = CoroutineScope(dispatcher)
+        val nativeScope = CoroutineScope(dispatcher)
+        val coordinator = PingCoordinator(nativeCeiling = 5)
+        val pingStates = MutableStateFlow<Map<Long, PingState>>(emptyMap())
+        val nativeGate = CompletableDeferred<Unit>()
+        val pool = (1L..5L).map { profile(it, subscriptionId = 42L) }
+        val outcomes = mutableListOf<FastestConnectOutcome>()
+        var nativeCalls = 0
+        val runner = FastestConnectRunner(
+            scope = runnerScope,
+            pingCoordinator = coordinator,
+            pingStates = pingStates,
+            resolvePool = { pool },
+            loadPreferences = { PingPreferences.DEFAULT.copy(concurrency = 5) },
+            probe = { profile, _ ->
+                coordinator.probeWithBackstop(
+                    scope = nativeScope,
+                    backstopMs = 60_000L,
+                    context = dispatcher,
+                    nativeCall = {
+                        nativeCalls++
+                        nativeGate.await()
+                        Result.success(profile.id)
+                    },
+                )
+            },
+            canConnect = { true },
+            onOutcome = { outcomes += it },
+        )
+
+        runner.start(pool.first())
+        assertEquals(0, coordinator.availableNativeSlots())
+        assertEquals(5, nativeCalls)
+
+        // This is Main.immediate-shaped: cancelling a runner waiter does not cancel the sibling
+        // native calls, which still own every slot when the same-subscription request arrives.
+        runner.start(pool.last())
+
+        assertTrue("the equivalent run must remain active while its native probes own the slots", runner.active.value)
+        assertTrue("the supersede must not turn every in-flight row into N/A", pingStates.value.values.none {
+            it == PingState.Unavailable
+        })
+        assertTrue("the superseded generation must not report a no-response outcome", outcomes.isEmpty())
+        assertEquals("a same-pool request must not launch another native probe set", 5, nativeCalls)
+
+        nativeGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1L, runner.winnerId.value)
+        assertFalse(runner.active.value)
+        assertTrue(outcomes.isEmpty())
+        assertEquals(5, coordinator.availableNativeSlots())
     }
 
     @Test

@@ -14,6 +14,15 @@ import com.justme.xtls_core_proxy.db.ProfileDao
  */
 object FailoverPoolResolver {
 
+    /**
+     * Whether two profiles select the same pool under [resolve]'s current partitioning rule.
+     *
+     * Keep this beside [resolve]: when curated pools change that rule, Connect-to-fastest's
+     * equivalent-run coalescing must change with it rather than duplicating stale partition logic.
+     */
+    internal fun samePool(first: Profile, second: Profile): Boolean =
+        first.subscriptionId == second.subscriptionId
+
     suspend fun resolve(dao: ProfileDao, current: Profile): List<Profile> {
         val subId = current.subscriptionId
         return if (subId == null) dao.getManualList() else dao.getBySubscriptionId(subId)
