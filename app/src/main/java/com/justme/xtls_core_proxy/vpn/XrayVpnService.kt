@@ -32,6 +32,7 @@ import com.justme.xtls_core_proxy.db.Profile
 import androidx.annotation.StringRes
 import com.justme.xtls_core_proxy.failover.AndroidNetworkAvailability
 import com.justme.xtls_core_proxy.failover.FailoverDecision
+import com.justme.xtls_core_proxy.failover.FailoverEpisodeDecision
 import com.justme.xtls_core_proxy.failover.FailoverPoolResolver
 import com.justme.xtls_core_proxy.failover.FailoverPreferences
 import com.justme.xtls_core_proxy.failover.FailoverSettings
@@ -180,7 +181,7 @@ class XrayVpnService : VpnService() {
     private var failoverRearmJob: Job? = null
     /** Rotation attempt timestamps for the sliding thrash window. Guarded by `lock`. */
     private var rotationAttempts: List<Long> = emptyList()
-    /** Candidates that failed bring-up in the CURRENT rotation episode. Guarded by `lock`. */
+    /** Servers that failed a health probe or bring-up in the CURRENT rotation episode. Guarded by `lock`. */
     private var episodeFailedIds: Set<Long> = emptySet()
     /**
      * What the last failover give-up left behind, or null when no give-up state is showing.
@@ -1167,6 +1168,11 @@ class XrayVpnService : VpnService() {
                         is RotationAdmission.Admitted -> rotationAttempts = admission.attempts
                     }
                     sessionTunnelState = SessionTunnelState.ROTATING
+                    val session = SessionContext(sessionEpoch, currentProfileId, sessionLog)
+                    episodeFailedIds = FailoverEpisodeDecision.recordProbeFailedCurrent(
+                        failedIds = episodeFailedIds,
+                        currentId = session.profileId,
+                    )
                     // The monitor that fired is already TERMINAL (TunnelHealthMonitor clears its own
                     // isStarted/job before invoking the listener) but the FIELD still holds it. Drop
                     // it here so the post-rotation re-apply constructs a FRESH monitor instead of
@@ -1174,7 +1180,7 @@ class XrayVpnService : VpnService() {
                     // once per session. The screen receiver is deliberately NOT reconciled yet: the
                     // rotation is transient, and the post-rotation apply reconciles it.
                     stopFailoverMonitorLocked()
-                    SessionContext(sessionEpoch, currentProfileId, sessionLog)
+                    session
                 }
 
                 val dao = AppDatabase.get(this@XrayVpnService).profileDao()
@@ -1275,7 +1281,6 @@ class XrayVpnService : VpnService() {
                             // posts the give-up alert and stops the monitor OVER A HEALTHY,
                             // JUST-RESTORED TUNNEL. A committed success must not be reclassifiable.
                             sessionTunnelState = SessionTunnelState.CONNECTED
-                            episodeFailedIds = emptySet()   // episode ends on a successful rotation
                             // ---- POST-COMMIT, still under `lock` ----
                             // Two of the three calls below reach a subsystem and can therefore
                             // throw: getSystemService(...).notify/cancel are binder calls, and
@@ -1409,7 +1414,10 @@ class XrayVpnService : VpnService() {
                                 // again. A rotation that no longer owns the transition dispatches
                                 // no such retry — canReserveRotation refuses it — so it has
                                 // nothing to record for.
-                                episodeFailedIds = episodeFailedIds + next.id
+                                episodeFailedIds = FailoverEpisodeDecision.recordBringUpFailure(
+                                    failedIds = episodeFailedIds,
+                                    candidateId = next.id,
+                                )
                                 // bringUpTunnel can fail AFTER establish() (e.g. startXray threw),
                                 // leaving a real fd with an indeterminate Xray behind it. Drop it
                                 // and clear tunInterfaceKind, so a give-up cannot mistake that
@@ -1679,8 +1687,9 @@ class XrayVpnService : VpnService() {
     private fun clearGiveUpStateOnRecovery(sessionEpoch: Long) {
         synchronized(lock) {
             if (!isCurrentSessionLocked(sessionEpoch)) return
-            if (giveUpOutcome == null) return
             if (sessionTunnelState != SessionTunnelState.CONNECTED) return
+            episodeFailedIds = FailoverEpisodeDecision.clearOnHealthyProbe(episodeFailedIds)
+            if (giveUpOutcome == null) return
             // Load-bearing: after an UNPROTECTED give-up there is NO tunnel, so the probe travels
             // the clear network and succeeds for the wrong reason. Clearing on that would announce
             // CONNECTED with no VPN at all — the exact lie this fix round exists to remove. That

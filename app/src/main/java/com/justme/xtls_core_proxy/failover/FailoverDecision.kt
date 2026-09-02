@@ -44,3 +44,16 @@ object FailoverDecision {
         }
     }
 }
+
+object FailoverEpisodeDecision {
+    /** The health probe proved the currently connected server failed this episode. */
+    fun recordProbeFailedCurrent(failedIds: Set<Long>, currentId: Long): Set<Long> =
+        failedIds + currentId
+
+    /** A candidate failed before it became current, so recursive selection must skip it too. */
+    fun recordBringUpFailure(failedIds: Set<Long>, candidateId: Long): Set<Long> =
+        failedIds + candidateId
+
+    /** A passing live-tunnel probe is the only successful completion of a failure episode. */
+    fun clearOnHealthyProbe(failedIds: Set<Long>): Set<Long> = emptySet()
+}
