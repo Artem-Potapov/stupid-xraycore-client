@@ -530,9 +530,22 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun disconnect(context: Context) {
+        signalStop(context, isReconnectStop = false)
+    }
+
+    /**
+     * Reconnect must tear down the current tunnel without scheduling service destruction behind the
+     * following start. It is deliberately private: every user-facing Disconnect remains a full stop.
+     */
+    private fun disconnectForReconnect(context: Context) {
+        signalStop(context, isReconnectStop = true)
+    }
+
+    private fun signalStop(context: Context, isReconnectStop: Boolean) {
         val appContext = context.applicationContext
         val stopIntent = Intent(appContext, XrayVpnService::class.java).apply {
             action = XrayVpnService.ACTION_STOP
+            if (isReconnectStop) putExtra(XrayVpnService.EXTRA_RECONNECT_STOP, true)
         }
         // The UI gate is CONNECTED/CONNECTING/PAUSED/BLACKHOLED/ERROR. In the first four the
         // service is running and this is a plain stop. ERROR is the exception and covers two very
@@ -549,8 +562,8 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
         // dispatch.
         // Guarded like connect()'s dispatch: startForegroundService can throw (e.g.
         // ForegroundServiceStartNotAllowedException on the ERROR path above, where this CREATES the
-        // service rather than signalling a running one). ReconnectFlow now calls this from a
-        // coroutine, so an uncaught throw would reach viewModelScope's handler instead of the
+        // service rather than signalling a running one). ReconnectFlow calls its keep-alive form
+        // from a coroutine, so an uncaught throw would reach viewModelScope's handler instead of the
         // caller — surface it through the same error channel every other failure uses. The active
         // profile is still cleared: the user asked to disconnect either way.
         try {
@@ -574,7 +587,7 @@ class VpnViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val reconnectFlow = ReconnectFlow(
         connectionState = LogRepository.connectionState,
-        stop = { disconnect(getApplication()) },
+        stop = { disconnectForReconnect(getApplication()) },
         start = { connect(getApplication(), it) },
         onTimeout = { LogRepository.emitError(R.string.vpn_reconnect_timeout_error) },
         onSuperseded = { reportConnectRequestSuperseded() },

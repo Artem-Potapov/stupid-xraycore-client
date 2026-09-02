@@ -634,9 +634,10 @@ internal fun shouldRestoreUnprotectedRearm(
  *   **still holds a TUN, so there is nothing for a restart to rescue** — plus the general one above
  *   that keeps "start while running" idempotent.
  *
- * Both contained outcomes reach a live tunnel again through `state/ReconnectFlow` instead, which
- * stops via `ACTION_STOP` — already marshalled onto the service's `tunnelOpScope`, so no blocking
- * call lands on the main thread and `stopVpn` needs no change at all.
+ * Both contained outcomes reach a live tunnel again through `state/ReconnectFlow` instead, whose
+ * marked `ACTION_STOP` is already marshalled onto the service's `tunnelOpScope` and calls
+ * `stopVpn(stopService = false)`. No blocking call lands on the main thread, while explicit user
+ * Stops retain their normal `stopSelf()` semantics.
  */
 internal fun shouldRestartForRecovery(
     running: Boolean,

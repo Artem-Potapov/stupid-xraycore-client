@@ -1,6 +1,8 @@
 package com.justme.xtls_core_proxy.vpn
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StartCommandDecisionTest {
@@ -26,6 +28,15 @@ class StartCommandDecisionTest {
         assertEquals(
             StartCommandDecision.Stop,
             StartCommandDecision.decide(XrayVpnService.ACTION_STOP, StartCommandDecision.SENTINEL)
+        )
+        assertTrue(StartCommandDecision.stopServiceForReconnect(isReconnectStop = false))
+    }
+
+    @Test
+    fun reconnectStop_keepsTheServiceAliveWhileTearingDownTheTunnel() {
+        assertFalse(
+            "Reconnect must not leave stopSelf pending behind its next ACTION_START",
+            StartCommandDecision.stopServiceForReconnect(isReconnectStop = true),
         )
     }
 

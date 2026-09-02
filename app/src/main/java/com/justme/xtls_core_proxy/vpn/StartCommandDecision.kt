@@ -22,6 +22,12 @@ sealed interface StartCommandDecision {
     companion object {
         const val SENTINEL = -1L
 
+        /**
+         * A Reconnect tears the tunnel down but must retain its service instance for the following
+         * start. Explicit Disconnect surfaces never pass this flag, so they still stop the service.
+         */
+        fun stopServiceForReconnect(isReconnectStop: Boolean): Boolean = !isReconnectStop
+
         fun decide(action: String?, profileId: Long): StartCommandDecision = when (action) {
             XrayVpnService.ACTION_START ->
                 if (profileId != SENTINEL) StartProfile(profileId) else RefuseNoProfile

@@ -29,9 +29,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * has a **running Xray core**, and that path calls `stopVpn` on the **main thread**, where
  * `stopXray()` would become a real `instance.Close()`. That is the RISK-1 hazard documented in
  * `docs/features/auto-failover.md`, cleared only because `UNPROTECTED` implies an already-stopped
- * core. `ACTION_STOP` already marshals onto the service's `tunnelOpScope`
- * (`Dispatchers.IO.limitedParallelism(1)`), so stop → settle → start keeps every blocking call off
- * the main thread and needs no change to `stopVpn` at all.
+ * core. Its marked `ACTION_STOP` marshals onto the service's `tunnelOpScope`
+ * (`Dispatchers.IO.limitedParallelism(1)`) and tears down without `stopSelf()`, so stop → settle →
+ * start keeps every blocking call off the main thread while leaving this service instance alive.
  *
  * ### Which give-up outcomes arrive here
  * Both CONTAINED ones, sharing this single path: `CONTAINED_BY_LIVE_TUNNEL` and
@@ -47,11 +47,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * ### The two races this survives
  * Both fail silently to "VPN off", and both are millisecond-scale, so neither would show up
  * reliably in manual testing:
- * 1. **The service's own destruction window.** `stopVpn` publishes `DISCONNECTED` about a dozen
- *    lines before it calls `stopSelf()`. A start dispatched the instant that state lands can reach
- *    AMS inside that window: `onStartCommand` runs, and the pending `stopSelf()` then tears the new
- *    session down along with the old one. So the start is **verified**, not assumed — see
- *    [START_VERIFY_MS].
+ * 1. **A start that does not survive.** The marked stop prevents the known `stopSelf()` destruction
+ *    window, but start delivery can still be swallowed or announce `CONNECTING` before returning to
+ *    `DISCONNECTED`/`ERROR`. So the start is **verified**, not assumed — see [START_VERIFY_MS].
  * 2. **A contending second tap.** The teardown window can last seconds while the state is still
  *    `BLACKHOLED`, so the affordance still renders and a re-tap is the natural user response. A
  *    second `stop()` landing after the first flow's start has set `running = true` takes the FULL
@@ -159,26 +157,16 @@ internal class ReconnectFlow(
                     SettleWatch.UserAborted -> return@launch
                     SettleWatch.Settled -> Unit
                 }
-                start(profileId)
-                // See "The two races this survives" (1). If the state never leaves DISCONNECTED the
-                // start was swallowed; by then the service really is gone, so one re-dispatch lands
-                // on a fresh instance. Bounded at ONE: a start that fails for a real reason (no
-                // profile, permission revoked) fails the same way twice and must then stop. A
-                // redundant second start is harmless — startVpn refuses it with "VPN already
-                // running", and activeProfileIdToRestoreOnRefusedStart returns null for equal ids,
-                // so it writes nothing.
-                //
-                // A user Stop during this window must NOT re-dispatch: that would turn Off into On.
-                val started = withTimeoutOrNull(START_VERIFY_MS) {
-                    awaitStartedOrUserStop(stopGenAtArm)
-                }
-                when (started) {
-                    null -> {
-                        if (userStopGeneration.value > stopGenAtArm) return@launch
-                        start(profileId)
+                // Verify both dispatched starts. A start can announce CONNECTING and then bounce
+                // back to DISCONNECTED or ERROR. One retry is enough to recover; a third dispatch
+                // would turn a real failure (no profile / revoked permission) into a loop.
+                repeat(2) { attempt ->
+                    start(profileId)
+                    when (awaitVerifiedStartOrUserStop(stopGenAtArm)) {
+                        StartWatch.UserAborted -> return@launch
+                        StartWatch.Verified -> return@launch
+                        StartWatch.Retry -> if (attempt == 1) return@launch
                     }
-                    SettleWatch.UserAborted -> return@launch
-                    SettleWatch.Settled -> Unit
                 }
             } finally {
                 // Also runs on cancellation (the ViewModel being cleared, or [cancel]), so the
@@ -217,22 +205,43 @@ internal class ReconnectFlow(
             },
         ).first { it != null }!!
 
-    private suspend fun awaitStartedOrUserStop(stopGenAtArm: Long): SettleWatch =
-        merge(
-            connectionState.map { state ->
-                when {
-                    userStopGeneration.value > stopGenAtArm -> SettleWatch.UserAborted
-                    state != VpnConnectionState.DISCONNECTED -> SettleWatch.Settled
-                    else -> null
-                }
-            },
-            userStopGeneration.map { gen ->
-                if (gen > stopGenAtArm) SettleWatch.UserAborted else null
-            },
-        ).first { it != null }!!
+    /**
+     * Verifies a start for the complete destruction window. CONNECTING is only an announcement:
+     * it can still return to DISCONNECTED. ERROR is also a failed start, never a reason to release
+     * the reconnect guard as though the session were live.
+     */
+    private suspend fun awaitVerifiedStartOrUserStop(stopGenAtArm: Long): StartWatch {
+        var sawStartAnnouncement = false
+        val terminal = withTimeoutOrNull(START_VERIFY_MS) {
+            merge(
+                connectionState.map { state ->
+                    when {
+                        userStopGeneration.value > stopGenAtArm -> StartWatch.UserAborted
+                        state == VpnConnectionState.ERROR -> StartWatch.Retry
+                        state == VpnConnectionState.DISCONNECTED && sawStartAnnouncement -> StartWatch.Retry
+                        state != VpnConnectionState.DISCONNECTED -> {
+                            sawStartAnnouncement = true
+                            null
+                        }
+                        else -> null
+                    }
+                },
+                userStopGeneration.map { gen ->
+                    if (gen > stopGenAtArm) StartWatch.UserAborted else null
+                },
+            ).first { it != null }!!
+        }
+        return terminal ?: if (sawStartAnnouncement) StartWatch.Verified else StartWatch.Retry
+    }
 
     private enum class SettleWatch {
         Settled,
+        UserAborted,
+    }
+
+    private enum class StartWatch {
+        Verified,
+        Retry,
         UserAborted,
     }
 

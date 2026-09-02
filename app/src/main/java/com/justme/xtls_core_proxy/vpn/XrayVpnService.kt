@@ -72,6 +72,11 @@ class XrayVpnService : VpnService() {
     companion object {
         const val ACTION_START = "com.justme.xtls_core_proxy.action.START"
         const val ACTION_STOP = "com.justme.xtls_core_proxy.action.STOP"
+        /**
+         * Internal ReconnectFlow teardown: close the tunnel but leave this service alive for the
+         * sequenced ACTION_START. User Disconnect / tile / notification Stops never set this.
+         */
+        const val EXTRA_RECONNECT_STOP = "extra_reconnect_stop"
         // Fired by the ongoing notification's deleteIntent when the user swipes it away.
         // Android 14+ makes ongoing foreground-service notifications user-dismissable with
         // no opt-out flag, so we re-post to keep the status persistent while the VPN runs.
@@ -286,6 +291,9 @@ class XrayVpnService : VpnService() {
             is StartCommandDecision.StartProfile -> startVpn(decision.profileId)
             StartCommandDecision.StartActiveProfile -> resolveActiveAndStart()
             StartCommandDecision.Stop -> {
+                val stopService = StartCommandDecision.stopServiceForReconnect(
+                    isReconnectStop = intent?.getBooleanExtra(EXTRA_RECONNECT_STOP, false) == true,
+                )
                 // Publish BEFORE launching stopVpn so a second Stop that early-returns still
                 // aborts an in-flight ReconnectFlow. No await (RISK-1): tryEmit-style StateFlow bump.
                 if (intent?.getBooleanExtra(EXTRA_USER_INITIATED_STOP, false) == true) {
@@ -299,7 +307,7 @@ class XrayVpnService : VpnService() {
                 // whatever session is current, so a stop landing mid-start still reliably stops
                 // the tunnel. onDestroy/onRevoke keep the SYNCHRONOUS stopVpn where teardown must
                 // complete inline.
-                tunnelOpScope.launch { stopVpn() }
+                tunnelOpScope.launch { stopVpn(stopService = stopService) }
             }
             StartCommandDecision.RepostNotification -> {
                 // User swiped the ongoing notification (allowed on Android 14+). Re-post it
@@ -2377,11 +2385,12 @@ class XrayVpnService : VpnService() {
     /**
      * Tears the current session down.
      *
-     * [stopService] is false for exactly one caller: `startVpn`'s unprotected-recovery restart,
-     * which needs the SESSION torn down but this service instance kept alive so it can immediately
-     * start a fresh one. Calling `stopSelf()` there would schedule our own destruction and
-     * `onDestroy` would then tear down the session we just started; skipping `stopForeground` also
-     * keeps the FGS promotion continuous across the restart instead of dropping and re-taking it.
+     * [stopService] is false for two in-service restart routes: `startVpn`'s UNPROTECTED recovery
+     * and ReconnectFlow's marked stop. Both need the SESSION torn down but this service instance
+     * kept alive so it can immediately start a fresh one. Calling `stopSelf()` there would schedule
+     * our own destruction and `onDestroy` would then tear down the session we just started; skipping
+     * `stopForeground` also keeps the FGS promotion continuous across the restart instead of
+     * dropping and re-taking it.
      */
     private fun stopVpn(expectedSessionEpoch: Long? = null, stopService: Boolean = true) {
         synchronized(lock) {

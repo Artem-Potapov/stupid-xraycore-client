@@ -121,12 +121,67 @@ class ReconnectFlowTest {
         state.value = VpnConnectionState.DISCONNECTED
         runCurrent()
         // startVpn announces CONNECTING almost immediately: the start took, and a second one would
-        // be a pointless intent into a healthy bring-up.
+        // be a pointless intent into a healthy bring-up. Keep observing through the verification
+        // window: CONNECTING is only an announcement, not proof that the session survived.
         state.value = VpnConnectionState.CONNECTING
         runCurrent()
+        assertEquals(
+            "CONNECTING is provisional until the destruction window has passed",
+            7L,
+            flow.reconnectingProfileId.value,
+        )
 
         advanceTimeBy(ReconnectFlow.START_VERIFY_MS + 1); runCurrent()
         assertEquals(listOf("stop", "start:7"), calls)
+        assertNull(flow.reconnectingProfileId.value)
+    }
+
+    @Test
+    fun aConnectingThenDisconnectedBounceIsReDispatchedExactlyOnce() = runTest {
+        // The former destruction window could publish CONNECTING before returning to DISCONNECTED.
+        // CONNECTING must therefore not end verification.
+        val state = MutableStateFlow(VpnConnectionState.BLACKHOLED)
+        val calls = mutableListOf<String>()
+        val flow = flowFor(state, calls, testScheduler)
+
+        flow.run(profileId = 7L, scope = this)
+        runCurrent()
+        state.value = VpnConnectionState.DISCONNECTED
+        runCurrent()
+        state.value = VpnConnectionState.CONNECTING
+        runCurrent()
+        state.value = VpnConnectionState.DISCONNECTED
+        runCurrent()
+
+        assertEquals(
+            "a start that bounces back to DISCONNECTED must be re-dispatched",
+            listOf("stop", "start:7", "start:7"),
+            calls,
+        )
+
+        // The recovery start itself is checked once more, but cannot create a third start.
+        advanceTimeBy(ReconnectFlow.START_VERIFY_MS + 1); runCurrent()
+        assertEquals(listOf("stop", "start:7", "start:7"), calls)
+    }
+
+    @Test
+    fun anErrorDuringStartVerificationIsRetriedRatherThanCountedAsSuccess() = runTest {
+        val state = MutableStateFlow(VpnConnectionState.BLACKHOLED)
+        val calls = mutableListOf<String>()
+        val flow = flowFor(state, calls, testScheduler)
+
+        flow.run(profileId = 7L, scope = this)
+        runCurrent()
+        state.value = VpnConnectionState.DISCONNECTED
+        runCurrent()
+        state.value = VpnConnectionState.ERROR
+        runCurrent()
+
+        assertEquals(
+            "ERROR is a failed start, so the one bounded recovery dispatch is used",
+            listOf("stop", "start:7", "start:7"),
+            calls,
+        )
     }
 
     @Test
@@ -242,7 +297,13 @@ class ReconnectFlowTest {
         runCurrent()
         state.value = VpnConnectionState.CONNECTING
         runCurrent()
-        assertNull("cleared once the sequence ends", flow.reconnectingProfileId.value)
+        assertEquals(
+            "CONNECTING stays guarded until the destruction window closes",
+            7L,
+            flow.reconnectingProfileId.value,
+        )
+        advanceTimeBy(ReconnectFlow.START_VERIFY_MS + 1); runCurrent()
+        assertNull("cleared after the verified start window", flow.reconnectingProfileId.value)
     }
 
     @Test
@@ -263,6 +324,7 @@ class ReconnectFlowTest {
         runCurrent()
         assertEquals(listOf("stop", "start:7"), calls)
 
+        advanceTimeBy(ReconnectFlow.START_VERIFY_MS + 1); runCurrent()
         state.value = VpnConnectionState.BLACKHOLED
         assertNotNull(
             "the guard must release once the flow completes",
