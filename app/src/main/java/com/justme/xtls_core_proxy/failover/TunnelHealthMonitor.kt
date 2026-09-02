@@ -51,9 +51,9 @@ internal fun tryInstallJob(
  * Notable properties, relative to UsageStatsForegroundAppMonitor:
  *  - A throwing source there ABORTS the loop; here a throw IS the signal, so the loop must survive
  *    it instead (both the probe and the availability check are guarded per-tick).
- *  - resumePolling() probes immediately rather than waiting a full interval — via the same
- *    `firstTick` mechanism the sibling monitor also uses, not a divergence from it — so picking
- *    the phone back up recovers fast at zero idle cost.
+ *  - start() waits one interval before its first probe so a newly started Xray outbound can settle;
+ *    resumePolling() still probes immediately so picking the phone back up recovers fast at zero
+ *    idle cost.
  */
 class TunnelHealthMonitor(
     private val probe: HealthProbe,
@@ -120,7 +120,7 @@ private val job = AtomicReference<Job?>(null)
         // install below re-checks, so assigning it after would make every start decline its own job
         // and leave the monitor silently non-polling.
         job.getAndSet(null)?.cancel()
-        launchAndInstallPollLoop()
+        launchAndInstallPollLoop(probeImmediately = false)
     }
 
     /**
@@ -132,10 +132,10 @@ private val job = AtomicReference<Job?>(null)
      * [tryInstallJob] install is what stops a loop being orphaned in — or overwritten out of — the
      * slot. `CancellationException` is rethrown so structured concurrency still works.
      */
-    private fun launchAndInstallPollLoop() {
+    private fun launchAndInstallPollLoop(probeImmediately: Boolean) {
         val launched = scope.launch {
             try {
-                runPollLoop()
+                runPollLoop(probeImmediately)
             } catch (t: CancellationException) {
                 throw t
             } catch (t: Throwable) {
@@ -168,11 +168,11 @@ private val job = AtomicReference<Job?>(null)
 
     fun resumePolling() {
         if (!isStarted) return
-        launchAndInstallPollLoop()
+        launchAndInstallPollLoop(probeImmediately = true)
     }
 
-    private suspend fun runPollLoop() {
-        var firstTick = true
+    private suspend fun runPollLoop(probeImmediately: Boolean) {
+        var firstTick = probeImmediately
         while (currentCoroutineContext().isActive) {
             if (!firstTick) delay(intervalMs)
             firstTick = false

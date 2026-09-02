@@ -2181,6 +2181,11 @@ class XrayVpnService : VpnService() {
                 // each toggle is an explicit "try again", so it is accepted rather than prevented.
                 rotationAttempts = emptyList()
 
+                if (failoverMonitor != null) {
+                    stopFailoverMonitorLocked()
+                    LogRepository.append("Failover monitor stopped (feature disabled)")
+                }
+
                 val releasedOutcome = giveUpOutcome
                 if (shouldReleaseGiveUpOnDisable(settings.enabled, releasedOutcome)) {
                     // The user switched the feature off, and the re-arm we just cancelled was the

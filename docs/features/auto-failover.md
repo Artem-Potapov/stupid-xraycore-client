@@ -244,9 +244,10 @@ Four properties are non-obvious and each one exists because of a defect found in
   must stay the **first** statement in `start()` — it is the `stillLive` predicate the install
   re-checks, so moving it below would make every start decline its own job
   (`aFreshStartRevivesATerminalMonitor` pins it).
-- **`resumePolling()` probes immediately** (via `firstTick`) rather than waiting a full interval, so
-  picking the phone back up recovers fast at zero idle cost. `pausePolling()` deliberately **preserves**
-  `consecutiveFailures` across a screen-off; `stop()` clears it.
+- **Startup waits one interval, but `resumePolling()` probes immediately.** A normal `start()` gives a
+  newly started Xray outbound time to settle before the first health probe; screen-on recovery still
+  uses its immediate `firstTick` so it recovers fast at zero idle cost. `pausePolling()` deliberately
+  **preserves** `consecutiveFailures` across a screen-off; `stop()` clears it.
 
 `onHealthy` fires **at most once** per `start()`, on the first successful probe. It exists because the
 give-up state would otherwise be able to outlive the condition it describes (see
@@ -276,7 +277,8 @@ ownership before every mutation, route every escape through one fail path.
      └────── success: CONNECTED, 1104 notice ──────┘            │
      │       active profile advances, monitor restarted         │
      │                                                          │
-     └────── failure: episodeFailedIds += next.id,      ────────┘
+     └────── probe failure: episodeFailedIds += current.id
+             bring-up failure: episodeFailedIds += next.id,
              tear down the half-built fd,
              RE-OPEN the bridge for the retry,
              currentProfileId rolled back,
@@ -306,12 +308,14 @@ Key properties:
   a server just proved dead would make a kill-switch revive fail and `failRevive` → `stopVpn` take the
   whole tunnel down. It also keeps the field in step with `ActiveProfileRepository`, which only
   advances on success.
-- **`episodeFailedIds` is episode-scoped**, cleared on a successful rotation and on every give-up, so
-  a server that failed an hour ago is not skipped forever. The failure arm writes it **inside** the
-  ownership re-check, like every other mutation there: `getById`/`resolve`/`bringUpTunnel` all ran
-  off-lock, so a stop+restart in that window would otherwise let an old-epoch failure blacklist a
-  server in the **new** session's episode. It is also only the owning branch that dispatches the
-  recursive retry, and that retry is the one thing that needs the id excluded.
+- **`episodeFailedIds` is episode-scoped.** Each unhealthy callback records the current server before
+  choosing a replacement; a bring-up failure also records its candidate, which never became current.
+  A core start does **not** end the episode — the remote proxy may still be dead — so a
+  core-start-success / probe-fail sequence walks every eligible pool member rather than returning to
+  the first one. The first passing live-tunnel health probe clears the set, as do give-up and full
+  teardown, so a server that failed an hour ago is not skipped forever. Every write is inside the
+  ownership re-check: `getById`/`resolve`/`bringUpTunnel` all ran off-lock, so a stop+restart in that
+  window would otherwise let an old-epoch failure blacklist a server in the **new** session's episode.
 - **A committed rotation cannot be reclassified by its own follow-up work.** `rotateTunnel`'s body is
   wrapped in `catch (Throwable) → failRotation → giveUpRotationLocked`, and after the `.onSuccess`
   lock block has committed, that funnel would run with `sessionTunnelState == CONNECTED` and a live
@@ -818,9 +822,11 @@ keeps its own recovery path (`shouldRestartForRecovery`, below) — it never rea
 home for why Reconnect is sequenced this way**; `VpnViewModel.reconnect` and `MainActivity`'s connect
 choke point both point at it rather than restating it. `ReconnectFlowTest` drives every rule.
 
-The sequence: dispatch `stop()` → await `DISCONNECTED` for up to `STOP_TIMEOUT_MS` (**8 000 ms**) →
-`start(profileId)` → confirm the state leaves `DISCONNECTED` within `START_VERIFY_MS` (**2 000 ms**),
-re-dispatching the start **exactly once** if it did not.
+The sequence: dispatch a Reconnect-marked `ACTION_STOP` → await `DISCONNECTED` for up to
+`STOP_TIMEOUT_MS` (**8 000 ms**) → `start(profileId)` → observe the whole `START_VERIFY_MS`
+(**2 000 ms**) window. A start is accepted only if it remains out of `DISCONNECTED` and never reaches
+`ERROR`; a never-announced start, `CONNECTING → DISCONNECTED` bounce, or `ERROR` re-dispatches the
+start **exactly once**.
 
 Three things about that shape are load-bearing:
 
@@ -828,16 +834,19 @@ Three things about that shape are load-bearing:
   fix and the one that must NOT happen. `CONTAINED_BY_LIVE_TUNNEL` has a **running Xray core**, and
   that path calls `stopVpn` on the **main thread**, where `stopXray()` would become a real
   `instance.Close()` — precisely the RISK-1 hazard below, which is cleared *only* because
-  `UNPROTECTED` implies an already-stopped core. `ACTION_STOP` already marshals onto the service's
-  `tunnelOpScope`, so stop → settle → start keeps every blocking call off the main thread and needs
-  no change to `stopVpn` at all. **Both** contained outcomes share this one path; the blackhole case
-  deliberately gets no separate "faster" route, because two restart paths would be one rule in two
-  homes — the shape behind most of this feature's defects.
+  `UNPROTECTED` implies an already-stopped core. Reconnect's marked `ACTION_STOP` marshals onto the
+  service's `tunnelOpScope` and calls `stopVpn(stopService = false)`, so stop → settle → start keeps
+  every blocking call off the main thread **and leaves the service instance alive** for the next
+  start. Explicit Disconnect, tile, and notification Stops do not carry that marker and still call
+  `stopSelf()`. **Both** contained outcomes share this one path; the blackhole case deliberately gets
+  no separate "faster" route, because two restart paths would be one rule in two homes — the shape
+  behind most of this feature's defects.
 - **The start is verified, not assumed.** `stopVpn` publishes `DISCONNECTED` about a dozen lines
-  before `stopSelf()`. A start dispatched inside that window reaches AMS, `onStartCommand` runs, and
-  the pending `stopSelf()` then tears down the *new* session along with the old one. The single
-  bounded re-dispatch lands on a fresh instance. It is bounded at one because a start that fails for
-  a real reason (no profile, permission revoked) fails identically twice; a redundant second start is
+  before it would normally call `stopSelf()`. Reconnect suppresses that destruction, but it still
+  verifies the complete window: `CONNECTING` is only an announcement, and a subsequent
+  `DISCONNECTED` or `ERROR` is a failed start, not success. The single bounded re-dispatch covers
+  that failure or a start that never announces. It is bounded at one because a start that fails for a
+  real reason (no profile, permission revoked) fails identically twice; a redundant second start is
   harmless (`startVpn` refuses it, and `activeProfileIdToRestoreOnRefusedStart` writes nothing for
   equal ids).
 - **First request wins.** `reconnectingProfileId` is armed *synchronously*, before the coroutine is
@@ -1199,6 +1208,13 @@ half is documented in [`profile-actions-menu.md`](profile-actions-menu.md); the 
   revision had a second copy of the rule in `VpnViewModel`; when curated pools land, that copy would
   have let auto-failover rotate within the curated pool while Connect-to-fastest kept probing the whole
   subscription, diverging with **no compile-time signal**. It was deleted, not synchronised.
+- **An equivalent request coalesces.** While a Connect-to-fastest run is active, a second request for
+  the same `FailoverPoolResolver` partition leaves that run in place instead of cancelling and
+  re-probing. Its uninterruptible JNI calls can still own `PingCoordinator` native slots after a
+  cancelled waiter unwinds; restarting the same pool at that instant would turn every replacement
+  probe into prompt `N/A`. An explicit Cancel and a request for a different partition retain the
+  replacement/cancellation behavior. `FailoverPoolResolver.samePool` lives beside `resolve` so a
+  future curated-pool rule updates both decisions together.
 - **The winner is re-gated TWICE — production side and consumption side — and both are needed.** The
   run can last minutes (`timeout × ceil(n / concurrency)`), and the winner can then sit **unconsumed
   indefinitely** because the Compose frame clock pauses below `STARTED`.
@@ -1265,7 +1281,7 @@ half is documented in [`profile-actions-menu.md`](profile-actions-menu.md); the 
 | [`failover/FailoverPoolResolver.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/failover/FailoverPoolResolver.kt) | `resolve(dao, current)` — manual partition or the profile's subscription. **Spec 2 seam** for curated pools; shared with Connect-to-fastest. |
 | [`failover/FailoverSettingsActivity.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/failover/FailoverSettingsActivity.kt) | The settings screen; per-control autosave, display validity derived the same way `coerce()` derives it. `FAILOVER_ENABLED_SWITCH_TAG` for the instrumented test. |
 | [`failover/FailoverSettingsPersistDecision.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/failover/FailoverSettingsPersistDecision.kt) | Pure `resolveFailoverSettings(...)` — the autosave rule extracted out of the Activity so it is JVM-testable (the codebase's `TileClickDecision`/`StartCommandDecision` shape). |
-| [`failover/FastestConnectRunner.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/failover/FastestConnectRunner.kt) | Framework-free Connect-to-fastest orchestration: generation-counter job replacement, delivery-time re-gate, `FastestConnectOutcome` (NO_RESPONSE / BUSY / STATE_CHANGED), cancellation cleanup. |
+| [`failover/FastestConnectRunner.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/failover/FastestConnectRunner.kt) | Framework-free Connect-to-fastest orchestration: equivalent-pool coalescing, generation-counter replacement for different pools, delivery-time re-gate, `FastestConnectOutcome` (NO_RESPONSE / BUSY / STATE_CHANGED), cancellation cleanup. |
 | [`failover/FastestPick.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/failover/FastestPick.kt) | Pure `pickFastest(states, candidates)` and `clearStaleTesting(states, ids)`. |
 | [`vpn/SessionLifecycleDecision.kt`](../../app/src/main/java/com/justme/xtls_core_proxy/vpn/SessionLifecycleDecision.kt) | All the pure service-side rules: `SessionTunnelState.ROTATING`, `canReserveRotation`, and the stateful `canReserveRotationFromAuthoritativeState` admission seam (reads the live `FailoverPreferences.state` before delegating), `shouldDeferKillDuringTransition`, `shouldHoldScreenReceiver`, `shouldRunFailoverMonitor`, `failoverMonitorNeedsRebuild`, **`shouldEstablishRotationBridge`**, **`GiveUpContainment` + `containmentForGiveUp`** (replaced `shouldEstablishBlackholeTunnel`), `FailoverGiveUpOutcome` + `classifyGiveUpOutcome`, **`connectionStateForGiveUp`** (outcome → `BLACKHOLED`/`ERROR`, the one place that mapping lives), `shouldStopServiceOnGiveUp`, `shouldFireFailoverRetry`, `shouldRestartForRecovery`, `activeProfileIdToRestoreOnRefusedStart`, `deferredKillNoticeLabel`, **`deferredKillToWithdraw`**, **`shouldReleaseGiveUpOnDisable`**, **`shouldOverwritePendingConnect`**, **`TunInterfaceKind`** (what the held fd *is* — `NONE`/`LIVE_PROXY`/`UNREAD_CONTAINMENT` — so a second give-up over an unread fd cannot be classified as a live tunnel), **`shouldAbortRotationForMissingBridge`**, **`shouldFunnelRotationReservationRefusal`**, **`shouldRestoreUnprotectedRearm`**, `unprotectedRetryAction`, `giveUpOngoingLine`. |
 | [`state/ConnectAction`](../../app/src/main/java/com/justme/xtls_core_proxy/state/VpnViewModel.kt) (in `VpnViewModel.kt`) | The connect gate: `ConnectAction` + `connectAction`/`connectLabelRes`/`connectEnabled`. Replaces the former boolean `canConnect`. |
@@ -1420,12 +1436,13 @@ is itself the argument for doing it.
 |---|---|
 | `failover/FailoverPreferencesTest` (8) | Defaults; every bound clamps on load **and** save; the `timeout < interval` pair rule; `load`/`save` I/O against mocked `SharedPreferences` (the `KillSwitchRepositoryTest` precedent), with `save` pinning the **coerced** value per key via `eq()`, not a bare `any()`. |
 | `failover/Http204HealthProbeTest` (5) | 204 → healthy; non-204/throwing opener → false, never a throw; `CancellationException` **propagates** rather than being swallowed. |
-| `failover/TunnelHealthMonitorTest` (18) | Threshold counting; the offline guard skips the tick **and** resets the counter; a throwing availability check is treated as offline; terminal-after-fire across both pause/resume orderings; a throwing listener does not kill the loop; tick continuation; a fresh `start()` REVIVING a terminal monitor (the other half of the terminal contract, and the ordering the atomic install makes load-bearing); **the no-liveness-gate contract on BOTH listeners, staged by cancelling the poll coroutine from inside the probe** — the only formulation that actually fails when the gate is restored, because `job.getAndSet(null)` clears the reference without cancelling. The recovery half (`theHealthyListenerIsInvokedEvenWhenTheLoopWasAlreadyCancelled`) was missing while the unhealthy half was pinned, so restoring the gate on the healthy listener left the suite green — and that swallow is the worse of the two: `reportedHealthy` is latched before the invocation and survives `pausePolling()`, so `clearGiveUpStateOnRecovery` would never run again for the session. |
+| `failover/TunnelHealthMonitorTest` (19) | Threshold counting; normal `start()` waits one interval while screen-on `resumePolling()` stays immediate; the offline guard skips the tick **and** resets the counter; a throwing availability check is treated as offline; terminal-after-fire across both pause/resume orderings; a throwing listener does not kill the loop; tick continuation; a fresh `start()` REVIVING a terminal monitor (the other half of the terminal contract, and the ordering the atomic install makes load-bearing); **the no-liveness-gate contract on BOTH listeners, staged by cancelling the poll coroutine from inside the probe** — the only formulation that actually fails when the gate is restored, because `job.getAndSet(null)` clears the reference without cancelling. The recovery half (`theHealthyListenerIsInvokedEvenWhenTheLoopWasAlreadyCancelled`) was missing while the unhealthy half was pinned, so restoring the gate on the healthy listener left the suite green — and that swallow is the worse of the two: `reportedHealthy` is latched before the invocation and survives `pausePolling()`, so `clearGiveUpStateOnRecovery` would never run again for the session. |
 | `failover/FailoverDecisionTest` (7) | `nextCandidate` skips the current id and episode failures, and follows **list** order rather than id order (pinned with a backwards-id pool — the only shape that can tell the two apart); `admitRotation` admits under the cap, denies at it, and slides the window. |
-| `failover/FailoverPoolResolverDispatchTest` (4) | Manual profile → `getManualList`, subscription profile → `getBySubscriptionId`; a fake DAO records calls and throws `UnsupportedOperationException` on any unexpected method, so a wrong dispatch fails loudly. |
+| `failover/FailoverEpisodeDecisionTest` (6) | Probe-failed core-start-success hops walk every member before exhaustion, including from a non-first server; a healthy probe clears the episode; bring-up-failure recursion keeps excluding a candidate that never became current; the sliding thrash cap remains unchanged. |
+| `failover/FailoverPoolResolverDispatchTest` (8) | Manual profile → `getManualList`, subscription profile → `getBySubscriptionId`, and the four-branch same-pool equivalence rule used by Connect-to-fastest coalescing; a fake DAO records calls and throws `UnsupportedOperationException` on any unexpected method, so a wrong dispatch fails loudly. |
 | `failover/FailoverSettingsPersistDecisionTest` (12) | Per-control autosave: an invalid field never vetoes the tuple; the timeout ceiling is derived from the **effective** interval; the exact headroom boundary (9 000 at interval 10 000) is accepted and the coerce-gap value (9 500) is rejected. |
 | `failover/FastestPickTest` (4), `failover/ClearStaleTestingTest` (3) | Lowest successful latency wins / nothing succeeded → null; stale-`Testing` reset scoped to the run's own ids. |
-| `failover/FastestConnectRunnerTest` (8) | Sequencing against a **real** `PingCoordinator` under `kotlinx-coroutines-test`: supersede (disjoint **and** identical pools), cancel-resets-`Testing`, the delivery-time re-gate discards + reports `STATE_CHANGED`, connectable winner is delivered, `NO_RESPONSE` vs `BUSY`. |
+| `failover/FastestConnectRunnerTest` (9) | Sequencing against a **real** `PingCoordinator` under `kotlinx-coroutines-test`: different-pool supersede, identical-pool coalescing, and the `UnconfinedTestDispatcher` native-slot regression that keeps a same-pool replacement from painting every row `N/A`; cancel-resets-`Testing`, the delivery-time re-gate discards + reports `STATE_CHANGED`, connectable winner is delivered, `NO_RESPONSE` vs `BUSY`. |
 | `vpn/SessionLifecycleDecisionTest` (58) | Every pure service rule above except the kill-deferral guard, including `shouldReleaseGiveUpOnDisable` (both the contained release **and** the `UNPROTECTED` non-release), `shouldOverwritePendingConnect`, and `containmentForGiveUp` — the live tunnel wins over a held bridge, the bridge wins over building a second TUN, the state arm, and `adoptingTheBridgeIsClassifiedAsABlackhole_neverAsALiveTunnel`, which composes containment with `classifyGiveUpOutcome` the way `giveUpRotationLocked` does — but with `hasTunnel` hard-coded, so it pins the composition and **not** the service's read ordering (see the give-up section). |
 | `vpn/SessionLifecycleRotationTest` (23) | Rotation reservation; `shouldEstablishRotationBridge` (opened once the rotation tore the tunnel down, never twice, never over a live tunnel, `ROTATING` only); the give-up predicates; `deferredKillNoticeLabel` (names the app while a tunnel remains; silent with nothing deferred and silent with no tunnel left); and the **sole** home of the kill-deferral coverage — `shouldDeferKillDuringTransition` across `{REVIVING, ROTATING}` × current/stale-epoch/stopped, plus the four settled states. The five duplicate cases that used to test the production-dead `shouldDeferKillDuringRevive` were checked one by one against the live function (all still held; none involved `ROTATING`, so none inverted), found already covered here, and deleted with it. Also `theAuthoritativeReadCarriesTheWholeTuple_notJustTheEnabledFlag`, which pins that `authoritativeFailoverSettings()` carries `maxRotations`/`rotationWindowMs` and not only `enabled` — the fields the deleted session cache used to answer. Also the sole home of `deferredKillToWithdraw`: withdraws for the current session, silent with nothing deferred, refused for a stale epoch and a stopped session, `everyStateThatCanDeferAKillCanAlsoWithdrawIt` (whole-enum implication, so a new deferral state cannot open a hole) and `withdrawalIsDeliberatelyWIDERThanDeferral_notAMirrorOfIt`. |
 | `vpn/FailoverNotificationIdsTest` (3) | All five ids and three channel ids are **mutually distinct** — the JVM-runnable (therefore CI-runnable) guard against the welded-channel regression. |

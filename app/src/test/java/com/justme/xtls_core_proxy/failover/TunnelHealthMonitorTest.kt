@@ -3,6 +3,7 @@ package com.justme.xtls_core_proxy.failover
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -40,6 +41,11 @@ class TunnelHealthMonitorTest {
      */
     private var monitorUnderTest: TunnelHealthMonitor? = null
 
+    private fun TestScope.runFirstScheduledProbe() {
+        advanceTimeBy(15_000L)
+        runCurrent()
+    }
+
     private fun monitor(
         probe: HealthProbe,
         availability: NetworkAvailability,
@@ -74,13 +80,31 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                       // first probe runs immediately
+        runFirstScheduledProbe()            // first probe runs after one interval
         assertEquals("one failure must not fire", 0, fired.get())
 
         advanceTimeBy(15_001L)             // second probe -> threshold reached
         runCurrent()
         assertEquals(1, fired.get())
         m.stop()
+    }
+
+    @Test
+    fun start_waitsOneIntervalBeforeItsFirstProbe() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val probe = FakeProbe(healthy = true)
+        val m = monitor(probe, FakeAvailability(), dispatcher)
+
+        m.start { }
+        runCurrent()
+        val callsBeforeInterval = probe.calls
+        advanceTimeBy(15_000L)
+        runCurrent()
+        val callsAfterInterval = probe.calls
+        m.stop()
+
+        assertEquals("a newly started tunnel needs one interval to settle", 0, callsBeforeInterval)
+        assertEquals("the first scheduled tick must still probe", 1, callsAfterInterval)
     }
 
     @Test
@@ -104,7 +128,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                       // fail 1
+        runFirstScheduledProbe()            // fail 1
         probe.healthy = true
         advanceTimeBy(15_001L); runCurrent()   // success -> reset
         probe.healthy = false
@@ -128,9 +152,9 @@ class TunnelHealthMonitorTest {
         advanceTimeBy(100_000L); runCurrent()
         assertEquals(0, fired.get())
         // fired == 0 alone can't tell "suppressed by the offline guard" from "loop died on tick
-        // 1" — pin that the loop kept ticking across the whole 100s window (ticks at t = 0,
-        // 15000, ..., 90000 -> 7 ticks), not just once.
-        assertEquals("loop must keep ticking while offline, not die silently", 7, availability.calls)
+        // 1" — pin that the loop kept ticking across the whole 100s window (ticks at t = 15000,
+        // ..., 90000 -> 6 ticks), not just once.
+        assertEquals("loop must keep ticking while offline, not die silently", 6, availability.calls)
         m.stop()
     }
 
@@ -143,7 +167,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, availability, dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                       // fail 1 while online
+        runFirstScheduledProbe()            // fail 1 while online
         availability.online = false
         advanceTimeBy(15_001L); runCurrent()   // offline tick resets the count
         availability.online = true
@@ -165,7 +189,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()
+        runFirstScheduledProbe()
         advanceTimeBy(15_001L); runCurrent()
         assertEquals("a throw IS the unhealthy signal, it must not kill the loop", 1, fired.get())
         m.stop()
@@ -180,7 +204,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, availability, dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                                 // fail 1 while online
+        runFirstScheduledProbe()                     // fail 1 while online
         availability.throws = true
         advanceTimeBy(15_001L); runCurrent()         // throwing tick: treated as offline, not fatal
         availability.throws = false
@@ -200,7 +224,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                           // fail 1
+        runFirstScheduledProbe()                // fail 1
         advanceTimeBy(15_001L); runCurrent()   // fail 2 -> fires, monitor goes terminal
         assertEquals(1, fired.get())
         val callsAfterFire = probe.calls
@@ -238,12 +262,12 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher)
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                           // fail 1
+        runFirstScheduledProbe()                // fail 1
         advanceTimeBy(15_001L); runCurrent()   // fail 2 -> fires, monitor goes terminal
         assertEquals(1, fired.get())
 
         m.start { fired.incrementAndGet() }
-        runCurrent()                           // fail 1 of the new start
+        runFirstScheduledProbe()                // fail 1 of the new start
         advanceTimeBy(15_001L); runCurrent()   // fail 2 -> must fire again
         assertEquals("a fresh start() must revive a terminal monitor", 2, fired.get())
         m.stop()
@@ -282,7 +306,7 @@ class TunnelHealthMonitorTest {
         started = monitor(cancellingProbe, FakeAvailability(), dispatcher, threshold = 1)
 
         started.start(onHealthy = null) { fired.incrementAndGet() }
-        runCurrent()
+        runFirstScheduledProbe()
         started.stop()
 
         assertEquals("the probe must have run exactly once", 1, cancellingProbe.calls)
@@ -333,7 +357,7 @@ class TunnelHealthMonitorTest {
             started = monitor(cancellingProbe, FakeAvailability(), dispatcher)
 
             started.start(onHealthy = { recovered.incrementAndGet() }) { }
-            runCurrent()
+            runFirstScheduledProbe()
             started.stop()
 
             assertEquals("the probe must have run exactly once", 1, cancellingProbe.calls)
@@ -360,7 +384,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(FakeProbe(healthy = true), FakeAvailability(), dispatcher)
 
         m.start(onHealthy = { recovered.incrementAndGet() }) { }
-        runCurrent()
+        runFirstScheduledProbe()
         m.stop()
         assertEquals(1, recovered.get())
     }
@@ -388,7 +412,7 @@ class TunnelHealthMonitorTest {
         advanceTimeBy(100_000L); runCurrent()
         m.stop()
         assertEquals(0, recovered.get())
-        assertEquals("loop must be alive, so 0 is a real answer", 7, probe.calls)
+        assertEquals("loop must be alive, so 0 is a real answer", 6, probe.calls)
     }
 
     @Test
@@ -399,7 +423,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher, threshold = 100)
 
         m.start(onHealthy = { recovered.incrementAndGet() }) { }
-        runCurrent()
+        runFirstScheduledProbe()
         val beforeRecovery = recovered.get()
         probe.healthy = true
         advanceTimeBy(15_001L); runCurrent()
@@ -417,10 +441,10 @@ class TunnelHealthMonitorTest {
         val m = monitor(FakeProbe(healthy = true), FakeAvailability(), dispatcher)
 
         m.start(onHealthy = { recovered.incrementAndGet() }) { }
-        runCurrent()
+        runFirstScheduledProbe()
         m.stop()
         m.start(onHealthy = { recovered.incrementAndGet() }) { }
-        runCurrent()
+        runFirstScheduledProbe()
         m.stop()
         assertEquals(2, recovered.get())
     }
@@ -433,7 +457,7 @@ class TunnelHealthMonitorTest {
         val m = monitor(probe, FakeAvailability(), dispatcher)
 
         m.start { fired.incrementAndGet() }   // trailing lambda must still bind to onUnhealthy
-        runCurrent()
+        runFirstScheduledProbe()
         advanceTimeBy(15_001L); runCurrent()
         m.stop()
         assertEquals("existing single-lambda callers must keep firing onUnhealthy", 1, fired.get())
@@ -448,6 +472,7 @@ class TunnelHealthMonitorTest {
         m.start { }
         runCurrent()
         val afterStart = probe.calls
+        assertEquals("normal start must wait for the first interval", 0, afterStart)
         m.pausePolling()
         advanceTimeBy(100_000L); runCurrent()
         assertEquals("paused monitor must not probe", afterStart, probe.calls)

@@ -1,9 +1,11 @@
 # QA — Auto-Failover (manual on-device)
 
-**Build under test:** branch `feat/auto-failover-core`, HEAD `6c2ac1a` (versionName `2.3.0R`,
-versionCode 4). Reinstall with `./gradlew :app:installDebug`.
+**Build under test:** branch `feat/auto-failover-core`, HEAD `a23cf36` (versionName `2.3.0R`,
+versionCode 4). Reinstall with `./gradlew :app:installDebug`. **If you edit `shared_prefs` or any
+resource between runs, install with `--rerun-tasks`** — a plain `installDebug` can be `UP-TO-DATE`
+and leave the old build on the device, which reads as the app ignoring your change.
 
-> **Test 23 requires this build or later.** The rotation bridge landed in `43e26d8`; on any earlier
+> **Test 23 requires `43e26d8` or later.** That is where the rotation bridge landed; on any earlier
 > HEAD the gap it covers is still open, so a tester on a stale build would capture cleartext during a
 > switch and report a leak that is already fixed. Confirm the installed commit before running it.
 
@@ -61,7 +63,9 @@ Recorded so you don't spend hardware time on them.
   `5000`, timeout `2000`, threshold `2`, max switches `3`. That gives a ~10 s detection window.
   Remember `rotationWindowMs` is **not** editable in the UI and stays at 600 000 ms (10 min) — that is
   the re-arm delay, so tests that wait for a re-arm need ten minutes of patience or a
-  `shared_prefs` edit + force-stop.
+  `shared_prefs` edit + force-stop. **It has a hard floor of `WINDOW_MIN` = 60 000 ms**
+  (`FailoverPreferences.coerce`), so a smaller value is silently raised to 60 s — do not read that as
+  the edit being ignored.
 - **Watch the logs**: `adb logcat | grep -i "Failover\|Kill-switch\|VPN"`, plus the in-app Logs screen
   (Settings → Diagnostics → Logs), which shows the same sanitized buffer.
 - **Note on the in-app error line:** it persists until the next transition to `CONNECTING`. A rotation
@@ -184,6 +188,7 @@ if it did not).
 
 ## Test 5 — The `UNPROTECTED` give-up and the full "disconnect now, stop if the re-arm fails" lifecycle ★★
 
+
 **Why:** **this entire path has never executed anywhere** — not in unit tests, not in the instrumented
 suite, not on hardware. It needs `Builder.establish()` itself to fail, which cannot be staged
 off-device.
@@ -191,7 +196,9 @@ off-device.
 **How to make `establish()` fail** — try these in order, and note which one worked:
 - **Revoke VPN consent while connected**: Settings → Network → VPN → the app's gear → "Forget"/revoke,
   or `adb shell cmd appops set com.justme.xtls_core_proxy ACTIVATE_VPN deny`. This is the most likely
-  route to a genuine `establish()` failure.
+  route to a genuine `establish()` failure. **This is the route that worked (2026-08-06).** Note
+  what it does *not* do: revoking consent this way does not tear the tunnel down — the VPN stays up
+  until something else tears it down.
 - **Start another VPN app** so it takes the single VPN slot, then kill all your servers.
 - **`adb shell pm revoke`/`cmd appops`** any permission the builder needs, mid-session.
 
@@ -218,6 +225,13 @@ state. That is telling the user their traffic is safe at the exact moment it is 
 Stay in 5a's state. The re-arm timer fires after `rotationWindowMs` (default **10 minutes**; shorten
 it by editing `failover_rotation_window_ms` in `shared_prefs/xray_prefs.xml` and force-stopping the
 app, since the screen has no control for it).
+
+> **Two traps here, both confirmed on 2026-08-06.** The key is real
+> (`FailoverPreferences.KEY_WINDOW`), but (1) reinstalling after a prefs/resource edit may need
+> `--rerun-tasks`, or the device keeps the old build; and (2) `coerce()` applies
+> `rotationWindowMs.coerceIn(WINDOW_MIN = 60_000L, WINDOW_MAX)`, so **anything below 60 s becomes
+> 60 s**. A 30 s edit producing a 60 s wait is the floor, not a bug — shorten `WINDOW_MIN` in source
+> if you need faster than that.
 
 **PASS:** exactly **one** rotation is attempted (a rotation, **not** a monitor restart — the log must
 show `Failover: rotating …`, not `Failover monitor started`). If a server is reachable again by then,
@@ -252,7 +266,7 @@ From 5a, turn auto-failover **off** at the settings screen before the timer fire
 1. The pending retry is cancelled — log shows
    `Failover: retry timer stood down (feature disabled or session ended)`, or nothing fires at all.
    **No automatic rotation and no automatic VPN shutdown may happen after the user disabled the
-   feature.**
+   feature.** - FAIL
 2. **The controls are still alive** — this is the check that matters and it is the mirror of 5e.3.
    The main button still offers **Connect** and is **tappable**; tap it and a working server comes up
    (the service restarts rather than refusing with "VPN already running"). **Disconnect** also still
@@ -437,7 +451,8 @@ keep you protected" sitting beside "the VPN is OFF and you're exposed".
 2. Change something that is *not* a timing field (toggle nothing, just re-save by editing and
    restoring a value) → **no** rebuild line for an unchanged tuple. **FAIL** if the monitor rebuilds on
    every save: that restarts the poll cycle continuously and the tunnel is never actually observed.
-3. Toggle failover **off** mid-session → the monitor stops; killing the server does nothing.
+3. Toggle failover **off** mid-session → logs show `Failover monitor stopped (feature disabled)` and
+   the monitor stops; killing the server does nothing.
 4. Toggle it back **on** → the monitor restarts and rotation works again.
 
 **Also:** open **Diagnostics → Ping test** and change the target URL. It is the **same** target the
