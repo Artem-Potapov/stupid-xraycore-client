@@ -26,3 +26,5 @@ xray-go/go.mod
 key.properties
 # SDD workspace scratch (subagent-driven-development)
 .superpowers/
+# Imported Claude Code memories — local only, never commit
+.cursor-memory-bank/
