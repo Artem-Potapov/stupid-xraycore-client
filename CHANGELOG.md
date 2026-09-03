@@ -3,6 +3,93 @@
 All notable changes to XTLS Core Proxy are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions track the app's `versionName`.
 
+## [3.0.0PRE] — 2026-09-02
+
+Tag: `3.0.0-PreRelease` (pending). Major release.
+
+## Auto-failover: a live-tunnel health watchdog that switches servers without leaking,
+plus Connect-to-fastest and honest status on every surface.
+
+### Added
+- **Auto-failover** (Settings → Tunnel → Auto-failover). **Off by default.** While connected, the
+  app probes the *live tunnel* (not a throwaway ping) and, if the current server stops passing
+  traffic, switches to another server from the same subscription — or to another server you added
+  yourself. Probe interval, timeout, consecutive-failure threshold, and a sliding "max switches per
+  window" cap are editable; each control autosaves on its own, same house style as the XRAY / Ping
+  screens. Enable/disable takes effect on the running session; the first probe after a connect waits
+  for the new tunnel to settle so a just-started server is not immediately blamed. Auto-failover
+  picks the next server in list order ("any working server"); latency ordering is the manual path
+  below.
+- **Connect to fastest** on the profile long-press menu. Probes that server's pool — the same pool
+  auto-failover would rotate through — and connects to whichever answered first. A second tap on the
+  same pool joins the in-flight run instead of colliding with it; Cancel still aborts. Returning to
+  the app after connecting some other way (e.g. the QS tile) no longer silently applies a stale
+  winner.
+- **Reconnect from a give-up.** When auto-failover has exhausted the pool, Connect is no longer a
+  dead button: it reads **Reconnect** and does a stop-then-start onto the server you pick. The Quick
+  Settings tile remains a Stop in that state (the session is still holding a tunnel). Turning
+  auto-failover off mid-give-up stops the search and keeps the paused / still-proxying posture, with
+  Reconnect as the way back on.
+- **Two notification channels.** A quiet "Switched server" notice (from → to) after a successful
+  rotation, and a high-importance "Connection problems" channel whose three alerts never share copy:
+  paused-to-protect, still-proxying-but-pages-may-not-load, and not-protected.
+
+### Changed
+- **Home, the ongoing VPN line, and the QS tile tell the truth** on every failover state.
+  Switching shows "Switching to another server…"; a contained give-up is either "Server is not
+  responding" (tunnel still up) or "No server connection — paused" (traffic held); an *uncontained*
+  give-up is **"Not protected"** on home and the tile — never the generic "Error", and never the
+  reassuring paused copy. No user-visible string in either locale says "blackhole".
+- **The QS tile is stoppable in every running state**, including the new give-up state and Error —
+  tapping it no longer tries to start a second tunnel over a live session.
+- **Config Sanitization** now reports the health-probe carve-out (one hostname forced through the
+  proxy so the watchdog measures the tunnel, not the clear network) and the imported-balancer
+  rewrites (selector expansion, stripped `fallbackTag: direct`, inbound-tag retarget / drop).
+- **Imported balancer configs** are normalized at the same chokepoint as tun / DNS: prefix selectors
+  expand to exact proxy outbounds, a `freedom` / `direct` fallback is stripped, and inbound-tag rules
+  that would have gone silent after the tun rewrite are retargeted onto `tun-in` (toward the proxy)
+  or dropped (toward direct). A balancer that was never a proxy path is left alone, so a
+  country-direct rule cannot be silently proxied.
+
+### Fixed
+- **A refused start no longer points the UI at the wrong server.** "VPN already running" used to
+  leave the active-profile id on the refused request, so home and the tile could name server B while
+  traffic still flowed through A.
+- **Disconnect and Stop win against an in-flight Reconnect.** In-app Disconnect, the tile, and the
+  notification Stop all abort a reconnect that hasn't settled; deleting a subscription mid-reconnect
+  is coordinated the same way. A parked permission dialog keeps the request that opened it — a later
+  tap cannot silently substitute a different server.
+- **Kill-switch + failover coexistence.** A kill that lands during a rotation is deferred and
+  replayed if the rotation succeeds. If the listed app *leaves* before that rotation (or revive)
+  commits, the deferred kill is withdrawn instead of parking the session paused for an app that is
+  gone. If rotation *gives up* with the listed app still in the foreground, the deferred kill is
+  dropped and a "VPN is still on" notice names the app — silently dropping it would leave the
+  kill-switch quietly non-functioning.
+
+### Security
+- **Fail-closed give-up — the fourth leak-proofing guarantee.** When no server works, the app does
+  not "just keep the dead tunnel" and does not drop you onto the clear network by accident. Three
+  outcomes, one funnel: (1) keep the still-proxying tunnel if nothing was torn down, (2) hold a
+  drop-only TUN (same capture as a real tunnel — split-out apps stay out, everything else is
+  dropped, including the system resolver and Private DNS) when the live tunnel is gone, (3) admit
+  "Not protected" only when even that containment could not be established. Those three never share
+  a message. The uncontained outcome is the one that also reaches the in-app error banner; the Logs
+  screen is not where a user learns their traffic just went clear.
+- **No clear-network window during a switch.** Rotation used to tear the dead TUN down, then spend
+  seconds building the next one with *no* VPN interface — every tunneled app emitting cleartext to
+  DPI. A bridge TUN (unread fd, same capture plan) now covers that gap: apps briefly lose
+  connectivity instead of briefly leaking. A give-up mid-gap adopts the bridge rather than leaving a
+  second interface stranded.
+- **The health probe cannot lie.** It is a Kotlin HTTP 204 through the live tunnel, so it answers
+  "is *this* tunnel passing traffic", not "can a throwaway instance reach the server". Two routing
+  rules — domain *and* IP — carve `cp.cloudflare.com` through the proxy in **every** routing mode,
+  including "proxy only blocked sites" and "except country", so a 204 with the proxy dead cannot
+  count as healthy. Under "except country" that is a deliberate one-hostname override of
+  country-direct (reported on the Config Sanitization screen). The probe is cleartext on purpose (it
+  looks like Android's own captive-portal check); a domain-scoped network-security carve-out permits
+  that one host and leaves the rest of the app on the platform default — no app-wide cleartext.
+  Airplane mode / lost signal is skipped, not blamed on servers.
+
 ## [2.3.0R] — 2026-07-26
 
 Tag: `2.3.0-Release`. Minor release.
